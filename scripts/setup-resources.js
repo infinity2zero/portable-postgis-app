@@ -232,28 +232,66 @@ async function installPython(targetOS) {
         strip: 0 // usually contains 'python' dir, check structure
     });
 
-    // Adjust structure if needed. Indygreg builds usually have a 'python' top level folder.
-    // If we extracted into `bin/mac/python`, we might have `bin/mac/python/python`.
-    // Let's flatten if so.
-    const innerPython = path.join(extractPath, 'python');
-    if (await fs.pathExists(innerPython)) {
-        const contents = await fs.readdir(innerPython);
-        for (const item of contents) {
-            await fs.move(path.join(innerPython, item), path.join(extractPath, item));
+    // Smart flattening: Find the binary and move everything up
+    const binaryName = targetOS === 'win' ? 'python.exe' : path.join('bin', 'python3');
+    
+    const findBinary = async (dir, targetEnd) => {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                const found = await findBinary(fullPath, targetEnd);
+                if (found) return found;
+            } else {
+                // Check if this file matches the target binary name (or path suffix)
+                if (fullPath.endsWith(targetEnd)) {
+                    return fullPath;
+                }
+            }
         }
-        await fs.rmdir(innerPython);
+        return null;
+    };
+
+    console.log(`[${targetOS}] Searching for ${binaryName}...`);
+    const foundPath = await findBinary(extractPath, binaryName);
+
+    if (foundPath) {
+        console.log(`[${targetOS}] Found binary at ${foundPath}`);
+        // Determine the root of the python installation
+        // If binary is 'python.exe', root is dirname(foundPath)
+        // If binary is 'bin/python3', root is dirname(dirname(foundPath))
+        
+        let sourceRoot = path.dirname(foundPath);
+        // If targetEnd contained separators (e.g. bin/python3), go up
+        const parts = binaryName.split(path.sep);
+        if (parts.length > 1) {
+            for (let i = 0; i < parts.length - 1; i++) {
+                sourceRoot = path.dirname(sourceRoot);
+            }
+        }
+
+        if (sourceRoot !== extractPath) {
+            console.log(`[${targetOS}] Flattening from ${sourceRoot} to ${extractPath}...`);
+            const contents = await fs.readdir(sourceRoot);
+            for (const item of contents) {
+                // Move items up
+                await fs.move(path.join(sourceRoot, item), path.join(extractPath, item), { overwrite: true });
+            }
+            // Try to remove the now empty source directories if they are inside extractPath
+            // (Optional, keeps things clean)
+        }
+    } else {
+        throw new Error(`Could not find ${binaryName} in extracted files.`);
     }
 
-    // Indygreg 'install_only' builds for Windows often have an 'install' subdirectory.
-    // Flatten that too if present, so python.exe is directly in bin/win/python/
+    /* 
+    // Old flattening logic removed in favor of smart search
+    // Adjust structure if needed. Indygreg builds usually have a 'python' top level folder.
+    const innerPython = path.join(extractPath, 'python');
+    if (await fs.pathExists(innerPython)) { ... }
     const installDir = path.join(extractPath, 'install');
-    if (await fs.pathExists(installDir)) {
-         const contents = await fs.readdir(installDir);
-         for (const item of contents) {
-             await fs.move(path.join(installDir, item), path.join(extractPath, item), { overwrite: true });
-         }
-         await fs.rmdir(installDir);
-    }
+    if (await fs.pathExists(installDir)) { ... }
+    */
 
     await fs.remove(downloadPath);
     console.log(`[${targetOS}] Python installed.`);
