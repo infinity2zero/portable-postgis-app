@@ -15,6 +15,7 @@ const CONFIG = {
     },
     win: {
         postgres: "https://get.enterprisedb.com/postgresql/postgresql-14.10-1-windows-x64-binaries.zip",
+        postgis: "https://download.osgeo.org/postgis/windows/pg14/postgis-bundle-pg14-3.4.2x64.zip",
         python: "https://github.com/indygreg/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-pc-windows-msvc-shared-install_only.tar.gz"
     }
 };
@@ -68,114 +69,142 @@ async function installPostgres(targetOS) {
     const binRoot = path.join(__dirname, '..', 'bin', targetOS);
     const downloadPath = path.join(binRoot, filename);
     const extractPath = path.join(binRoot, 'postgres');
+    
+    // Check if Postgres is already installed
+    let postgresInstalled = await fs.pathExists(extractPath);
+    
+    if (!postgresInstalled) {
+        await fs.ensureDir(binRoot);
+        await downloadFile(url, downloadPath);
 
-    if (await fs.pathExists(extractPath)) {
-        console.log(`[${targetOS}] Postgres already installed.`);
-        return;
-    }
+        // Spinner helper
+        const spin = () => {
+            const chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+            let i = 0;
+            return setInterval(() => {
+                process.stdout.write(`\rExtracting... ${chars[i++ % chars.length]}`);
+            }, 100);
+        };
 
-    await fs.ensureDir(binRoot);
-    await downloadFile(url, downloadPath);
+        console.log(`[${targetOS}] Extracting Postgres...`);
+        const spinner = spin();
 
-    // Spinner helper
-    const spin = () => {
-        const chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-        let i = 0;
-        return setInterval(() => {
-            process.stdout.write(`\rExtracting... ${chars[i++ % chars.length]}`);
-        }, 100);
-    };
-
-    console.log(`[${targetOS}] Extracting Postgres...`);
-    const spinner = spin();
-
-    try {
-        if (filename.endsWith('.dmg')) {
-            const { exec } = require('child_process');
-            const execAsync = promisify(exec);
-            const mountPoint = path.join('/tmp', 'pgapp_mount_' + Date.now());
-            
-            await fs.ensureDir(mountPoint);
-            
-            try {
-                // Attach DMG
-                await execAsync(`hdiutil attach -nobrowse -mountpoint "${mountPoint}" "${downloadPath}"`);
-                
-                // Copy binaries from Postgres.app/Contents/Versions/14 (or latest version dir found)
-                const versionsDir = path.join(mountPoint, 'Postgres.app', 'Contents', 'Versions');
-                let versionToCopy = '16';
-                if (!await fs.pathExists(path.join(versionsDir, versionToCopy))) {
-                    const dirs = await fs.readdir(versionsDir);
-                    if (dirs.length > 0) versionToCopy = dirs[0];
-                }
-
-                const source = path.join(versionsDir, versionToCopy);
-                if (await fs.pathExists(source)) {
-                     console.log(`[${targetOS}] Copying binaries from ${source}...`);
-                     await fs.copy(source, extractPath);
-                } else {
-                     throw new Error(`Could not find Postgres binaries in DMG at ${source}`);
-                }
-            } finally {
-                // Detach DMG
-                try {
-                    await execAsync(`hdiutil detach "${mountPoint}" -force`);
-                } catch (e) {
-                    console.warn('Failed to unmount:', e.message);
-                }
-            }
-            
-            clearInterval(spinner);
-            process.stdout.write('\rExtracting... Done!   \n');
-
-        } else if (process.platform === 'win32' || targetOS === 'win') {
-            const zip = new AdmZip(downloadPath);
-            zip.extractAllTo(binRoot, true);
-            clearInterval(spinner);
-            process.stdout.write('\rExtracting... Done!   \n');
-        } else {
-            const { spawn } = require('child_process');
-            // Use spawn to avoid buffer issues and allow async flow
-            await new Promise((resolve, reject) => {
-                const child = spawn('unzip', ['-o', '-q', downloadPath, '-d', binRoot]);
-                child.on('close', code => code === 0 ? resolve() : reject(new Error(`unzip exited with ${code}`)));
-                child.on('error', reject);
-            });
-            clearInterval(spinner);
-            process.stdout.write('\rExtracting... Done!   \n');
-        }
-    } catch (e) {
-        clearInterval(spinner);
-        process.stdout.write('\n');
-        // Unzip failed. Corrupted download?
-        await fs.remove(downloadPath);
-        await fs.remove(extractPath);
-        throw new Error(`Unzip failed. Download likely corrupted. Deleted ${downloadPath}. Please run setup again.`);
-    }
-
-    // EnterpriseDB zips usually extract to a 'pgsql' folder. Rename it.
-    if (await fs.pathExists(path.join(binRoot, 'pgsql'))) {
-        await fs.rename(path.join(binRoot, 'pgsql'), extractPath);
-    }
-
-    await fs.remove(downloadPath);
-    await fs.remove(downloadPath);
-
-    if (process.platform !== 'win32' && targetOS !== 'win') {
-        const { execSync } = require('child_process');
         try {
-            // Make binaries executable
-            const binDir = path.join(binRoot, 'postgres', 'bin');
-            if (await fs.pathExists(binDir)) {
-                execSync(`chmod +x "${path.join(binDir, '*')}"`, { stdio: 'inherit', shell: true });
-                console.log(`[${targetOS}] Fixed permissions for Postgres binaries.`);
+            if (filename.endsWith('.dmg')) {
+                const { exec } = require('child_process');
+                const execAsync = promisify(exec);
+                const mountPoint = path.join('/tmp', 'pgapp_mount_' + Date.now());
+                
+                await fs.ensureDir(mountPoint);
+                
+                try {
+                    // Attach DMG
+                    await execAsync(`hdiutil attach -nobrowse -mountpoint "${mountPoint}" "${downloadPath}"`);
+                    
+                    // Copy binaries from Postgres.app/Contents/Versions/14 (or latest version dir found)
+                    const versionsDir = path.join(mountPoint, 'Postgres.app', 'Contents', 'Versions');
+                    let versionToCopy = '16';
+                    if (!await fs.pathExists(path.join(versionsDir, versionToCopy))) {
+                        const dirs = await fs.readdir(versionsDir);
+                        if (dirs.length > 0) versionToCopy = dirs[0];
+                    }
+
+                    const source = path.join(versionsDir, versionToCopy);
+                    if (await fs.pathExists(source)) {
+                        console.log(`[${targetOS}] Copying binaries from ${source}...`);
+                        await fs.copy(source, extractPath);
+                    } else {
+                        throw new Error(`Could not find Postgres binaries in DMG at ${source}`);
+                    }
+                } finally {
+                    // Detach DMG
+                    try {
+                        await execAsync(`hdiutil detach "${mountPoint}" -force`);
+                    } catch (e) {
+                        console.warn('Failed to unmount:', e.message);
+                    }
+                }
+                
+                clearInterval(spinner);
+                process.stdout.write('\rExtracting... Done!   \n');
+
+            } else if (process.platform === 'win32' || targetOS === 'win') {
+                const zip = new AdmZip(downloadPath);
+                zip.extractAllTo(binRoot, true);
+                clearInterval(spinner);
+                process.stdout.write('\rExtracting... Done!   \n');
+
+            } else {
+                const { spawn } = require('child_process');
+                // Use spawn to avoid buffer issues and allow async flow
+                await new Promise((resolve, reject) => {
+                    const child = spawn('unzip', ['-o', '-q', downloadPath, '-d', binRoot]);
+                    child.on('close', code => code === 0 ? resolve() : reject(new Error(`unzip exited with ${code}`)));
+                    child.on('error', reject);
+                });
+                clearInterval(spinner);
+                process.stdout.write('\rExtracting... Done!   \n');
             }
         } catch (e) {
-            console.error(`[${targetOS}] Failed to chmod postgres binaries:`, e.message);
+            clearInterval(spinner);
+            process.stdout.write('\n');
+            // Unzip failed. Corrupted download?
+            await fs.remove(downloadPath);
+            await fs.remove(extractPath);
+            throw new Error(`Unzip failed. Download likely corrupted. Deleted ${downloadPath}. Please run setup again.`);
         }
+
+        // EnterpriseDB zips usually extract to a 'pgsql' folder. Rename it.
+        if (await fs.pathExists(path.join(binRoot, 'pgsql'))) {
+            await fs.rename(path.join(binRoot, 'pgsql'), extractPath);
+        }
+
+        await fs.remove(downloadPath);
+        // await fs.remove(downloadPath); // Duplicate removal?
+
+        if (process.platform !== 'win32' && targetOS !== 'win') {
+            const { execSync } = require('child_process');
+            try {
+                // Make binaries executable
+                const binDir = path.join(binRoot, 'postgres', 'bin');
+                if (await fs.pathExists(binDir)) {
+                    execSync(`chmod +x "${path.join(binDir, '*')}"`, { stdio: 'inherit', shell: true });
+                    console.log(`[${targetOS}] Fixed permissions for Postgres binaries.`);
+                }
+            } catch (e) {
+                console.error(`[${targetOS}] Failed to chmod postgres binaries:`, e.message);
+            }
+        }
+
+        console.log(`[${targetOS}] Postgres installed.`);
+        postgresInstalled = true;
+    } else {
+        console.log(`[${targetOS}] Postgres already installed.`);
     }
 
-    console.log(`[${targetOS}] Postgres installed.`);
+    // Install PostGIS for Windows (Check if installed separately)
+    if (postgresInstalled && (process.platform === 'win32' || targetOS === 'win')) {
+        const postgisControlPath = path.join(extractPath, 'share', 'extension', 'postgis.control');
+        
+        if (!await fs.pathExists(postgisControlPath)) {
+            console.log(`[${targetOS}] Installing PostGIS extensions...`);
+            const postgisUrl = CONFIG.win.postgis;
+            const postgisFilename = path.basename(postgisUrl);
+            const postgisDownloadPath = path.join(binRoot, postgisFilename);
+
+            await downloadFile(postgisUrl, postgisDownloadPath);
+
+            console.log(`[${targetOS}] Extracting PostGIS...`);
+            const postgisZip = new AdmZip(postgisDownloadPath);
+            // Extract directly into postgres folder to merge bin/share/lib
+            postgisZip.extractAllTo(extractPath, true);
+            
+            await fs.remove(postgisDownloadPath);
+            console.log(`[${targetOS}] PostGIS installed.`);
+        } else {
+            console.log(`[${targetOS}] PostGIS already installed.`);
+        }
+    }
 }
 
 async function installPython(targetOS) {
@@ -262,7 +291,8 @@ async function installPgAdmin(targetOS) {
     try {
         await execPromise(`"${pythonBin}" -m pip install --upgrade pip`);
         console.log(`[${targetOS}] Pip upgraded.`);
-        await execPromise(`"${pythonBin}" -m pip install pgadmin4`);
+        // Install specific version of pgadmin4 to avoid "registry" error in 8.x/latest
+        await execPromise(`"${pythonBin}" -m pip install pgadmin4==8.4`);
         console.log(`[${targetOS}] pgAdmin4 installed.`);
     } catch (e) {
         console.error(`[${targetOS}] Failed to install pgAdmin:`, e);
