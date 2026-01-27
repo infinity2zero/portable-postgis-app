@@ -15,7 +15,7 @@ const CONFIG = {
     },
     win: {
         postgres: "https://get.enterprisedb.com/postgresql/postgresql-14.10-1-windows-x64-binaries.zip",
-        postgis: "https://download.osgeo.org/postgis/windows/pg14/postgis-bundle-pg14-3.4.2x64.zip",
+        postgis: "https://download.osgeo.org/postgis/windows/pg14/postgis-bundle-pg14-3.6.1x64.zip",
         python: "https://github.com/indygreg/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-pc-windows-msvc-shared-install_only.tar.gz"
     }
 };
@@ -27,40 +27,68 @@ const TARGETS = ARGS.includes('--target=win') ? ['win']
         : ARGS.includes('--target=all') ? ['mac', 'win']
             : [process.platform === 'win32' ? 'win' : 'mac'];
 
-async function downloadFile(url, dest) {
+async function downloadFile(url, dest, { retries = 3, retryDelayMs = 1000 } = {}) {
     console.log(`Downloading ${url}...`);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.statusText}`);
 
-    const total = parseInt(res.headers.get('content-length'), 10);
-    let current = 0;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch(url);
+            
+            if (res.status === 404) {
+                throw new Error(`Failed to fetch ${url}: 404 Not Found`);
+            }
+            
+            if (!res.ok) {
+                const statusText = res.statusText || `HTTP ${res.status}`;
+                if (attempt < retries) {
+                    console.warn(`Download attempt ${attempt} failed: ${statusText}. Retrying in ${retryDelayMs}ms...`);
+                    await new Promise(r => setTimeout(r, retryDelayMs));
+                    retryDelayMs *= 2;
+                    continue;
+                } else {
+                    throw new Error(`Failed to fetch ${url}: ${statusText}`);
+                }
+            }
 
-    if (isNaN(total)) {
-        console.log('Total size unknown based on content-length.');
-    }
+            const total = parseInt(res.headers.get('content-length'), 10);
+            let current = 0;
 
-    const destStream = fs.createWriteStream(dest);
+            if (isNaN(total)) {
+                console.log('Total size unknown based on content-length.');
+            }
 
-    // Track progress
-    res.body.on('data', (chunk) => {
-        current += chunk.length;
-        if (total && !isNaN(total)) {
-            const percent = ((current / total) * 100).toFixed(1);
-            process.stdout.write(`\rProgress: ${percent}% (${(current / 1024 / 1024).toFixed(1)} MB / ${(total / 1024 / 1024).toFixed(1)} MB)`);
-        } else {
-            process.stdout.write(`\rDownloaded: ${(current / 1024 / 1024).toFixed(1)} MB`);
+            const destStream = fs.createWriteStream(dest);
+
+            res.body.on('data', (chunk) => {
+                current += chunk.length;
+                if (total && !isNaN(total)) {
+                    const percent = ((current / total) * 100).toFixed(1);
+                    process.stdout.write(`\rProgress: ${percent}% (${(current / 1024 / 1024).toFixed(1)} MB / ${(total / 1024 / 1024).toFixed(1)} MB)`);
+                } else {
+                    process.stdout.write(`\rDownloaded: ${(current / 1024 / 1024).toFixed(1)} MB`);
+                }
+            });
+
+            await new Promise((resolve, reject) => {
+                res.body.pipe(destStream);
+                res.body.on("error", reject);
+                destStream.on("finish", () => {
+                    process.stdout.write('\n'); // Clear line of progress
+                    resolve();
+                });
+            });
+            console.log(`Downloaded to ${dest}`);
+            return;
+        } catch (e) {
+            // If it's the last attempt or a fatal error (like 404), rethrow
+            if (attempt === retries || e.message.includes('404 Not Found')) {
+                throw e;
+            }
+            console.warn(`Download attempt ${attempt} error: ${e.message}. Retrying in ${retryDelayMs}ms...`);
+            await new Promise(r => setTimeout(r, retryDelayMs));
+            retryDelayMs *= 2;
         }
-    });
-
-    await new Promise((resolve, reject) => {
-        res.body.pipe(destStream);
-        res.body.on("error", reject);
-        destStream.on("finish", () => {
-            process.stdout.write('\n'); // Clear line of progress
-            resolve();
-        });
-    });
-    console.log(`Downloaded to ${dest}`);
+    }
 }
 
 async function installPostgres(targetOS) {
@@ -185,22 +213,28 @@ async function installPostgres(targetOS) {
     // Install PostGIS for Windows (Check if installed separately)
     if (postgresInstalled && (process.platform === 'win32' || targetOS === 'win')) {
         const postgisControlPath = path.join(extractPath, 'share', 'extension', 'postgis.control');
-        
+
         if (!await fs.pathExists(postgisControlPath)) {
             console.log(`[${targetOS}] Installing PostGIS extensions...`);
-            const postgisUrl = CONFIG.win.postgis;
+            const postgisUrl = process.env.POSTGIS_URL || CONFIG.win.postgis;
             const postgisFilename = path.basename(postgisUrl);
             const postgisDownloadPath = path.join(binRoot, postgisFilename);
 
-            await downloadFile(postgisUrl, postgisDownloadPath);
+            try {
+                await downloadFile(postgisUrl, postgisDownloadPath);
 
-            console.log(`[${targetOS}] Extracting PostGIS...`);
-            const postgisZip = new AdmZip(postgisDownloadPath);
-            // Extract directly into postgres folder to merge bin/share/lib
-            postgisZip.extractAllTo(extractPath, true);
-            
-            await fs.remove(postgisDownloadPath);
-            console.log(`[${targetOS}] PostGIS installed.`);
+                console.log(`[${targetOS}] Extracting PostGIS...`);
+                const postgisZip = new AdmZip(postgisDownloadPath);
+                // Extract directly into postgres folder to merge bin/share/lib
+                postgisZip.extractAllTo(extractPath, true);
+
+                await fs.remove(postgisDownloadPath);
+                console.log(`[${targetOS}] PostGIS installed.`);
+            } catch (e) {
+                // Non-fatal: log and continue so Python can still be installed
+                console.warn(`[${targetOS}] Warning: Failed to download/install PostGIS from ${postgisUrl}: ${e.message}`);
+                console.warn(`[${targetOS}] Continuing without PostGIS - you can set POSTGIS_URL in CI to a valid bundle URL.`);
+            }
         } else {
             console.log(`[${targetOS}] PostGIS already installed.`);
         }
