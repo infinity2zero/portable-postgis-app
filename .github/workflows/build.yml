@@ -10,6 +10,8 @@ on:
 
 jobs:
   build-win:
+    permissions:
+      contents: write
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v3
@@ -49,6 +51,8 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         
   build-mac:
+    permissions:
+      contents: write
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v3
