@@ -1,0 +1,67 @@
+name: Build and Verify
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        
+    - name: Install Dependencies
+      run: npm install
+      
+    - name: Download Portable Binaries (Windows)
+      run: node scripts/setup-resources.js --target=win
+      
+    - name: Verify Binary Structure
+      run: |
+        if (Test-Path "bin/win/postgres/bin/postgres.exe") { echo "Postgres found" } else { echo "Postgres MISSING"; exit 1 }
+        if (Test-Path "bin/win/python/python.exe") { echo "Python found" } else { echo "Python MISSING"; exit 1 }
+        
+    - name: Build Electron App (Distributable)
+      run: npm run build -- --win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: portable-postgis-win
+        path: dist/*.exe
+        
+  build-mac:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        
+    - name: Install Dependencies
+      run: npm install
+      
+    - name: Download Portable Binaries (Mac)
+      run: node scripts/setup-resources.js --target=mac
+      
+    - name: Build Electron App
+      run: npm run build -- --mac
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: portable-postgis-mac
+        path: dist/*.dmg

@@ -1,0 +1,27 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- PostgreSQL-inspired Database Cylinder -->
+  <g transform="translate(0, 100)">
+    <!-- Bottom Disk -->
+    <path d="M212 700 c0 60 134 110 300 110 s300 -50 300 -110 v100 c0 60 -134 110 -300 110 s-300 -50 -300 -110 z" fill="#336791" stroke="#254a66" stroke-width="10"/>
+    <!-- Middle Disk -->
+    <path d="M212 550 c0 60 134 110 300 110 s300 -50 300 -110 v100 c0 60 -134 110 -300 110 s-300 -50 -300 -110 z" fill="#336791" stroke="#254a66" stroke-width="10"/>
+    <!-- Top Disk -->
+    <path d="M212 400 c0 60 134 110 300 110 s300 -50 300 -110 v100 c0 60 -134 110 -300 110 s-300 -50 -300 -110 z" fill="#336791" stroke="#254a66" stroke-width="10"/>
+    <!-- Top Surface -->
+    <ellipse cx="512" cy="400" rx="300" ry="110" fill="#4d8bbd" stroke="#254a66" stroke-width="10"/>
+  </g>
+
+  <!-- Globe/Map Pin Overlay -->
+  <g transform="translate(512, 350)">
+    <!-- Pin Body -->
+    <path d="M0 0 C-150 0 -240 -100 -240 -220 C-240 -380 -80 -500 0 -500 C80 -500 240 -380 240 -220 C240 -100 150 0 0 0 Z" fill="#4ea64e" stroke="#2d662d" stroke-width="10"/>
+    <!-- Pin Point -->
+    <path d="M0 0 L-40 0 L0 180 L40 0 Z" fill="#4ea64e" stroke="#2d662d" stroke-width="10" transform="translate(0, -10)"/>
+    
+    <!-- Globe Grid Lines (White, Semi-transparent) -->
+    <path d="M-200 -220 Q0 -120 200 -220" fill="none" stroke="white" stroke-width="20" opacity="0.5"/>
+    <path d="M-200 -220 Q0 -320 200 -220" fill="none" stroke="white" stroke-width="20" opacity="0.5"/>
+    <path d="M0 -460 V0" fill="none" stroke="white" stroke-width="20" opacity="0.5"/>
+    <path d="M-220 -220 H220" fill="none" stroke="white" stroke-width="20" opacity="0.5"/>
+  </g>
+</svg>

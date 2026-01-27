@@ -1,0 +1,86 @@
+{
+    "name": "portable-postgis-app",
+    "version": "1.0.0",
+    "description": "Portable App bundling PostgreSQL, PostGIS, and pgAdmin",
+    "keywords": [
+        "portable",
+        "postgresql",
+        "postgis",
+        "pgadmin",
+        "database",
+        "gis",
+        "spatial",
+        "electron",
+        "offline",
+        "developer-tools",
+        "sql",
+        "postgres"
+    ],
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "setup": "node scripts/setup-resources.js",
+        "build": "electron-builder",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "build": {
+        "appId": "com.example.portable-postgis",
+        "productName": "Portable PostGIS",
+        "icon": "assets/icon.png",
+        "extraResources": [
+            {
+                "from": "bin/${os}",
+                "to": "bin/${os}",
+                "filter": [
+                    "**/*",
+                    "!**/__pycache__/**",
+                    "!**/tests/**",
+                    "!**/test/**",
+                    "!**/*.pyc",
+                    "!**/*.pyo",
+                    "!**/doc/**",
+                    "!**/share/doc/**",
+                    "!**/share/man/**"
+                ]
+            },
+            "data"
+        ],
+        "mac": {
+            "target": "dmg"
+        },
+        "win": {
+            "target": [
+                "nsis",
+                "portable",
+                "zip"
+            ],
+            "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+        },
+        "nsis": {
+            "oneClick": false,
+            "perMachine": false,
+            "allowToChangeInstallationDirectory": true
+        },
+        "portable": {
+            "artifactName": "${productName}-Portable-${version}.${ext}",
+            "requestExecutionLevel": "user"
+        }
+    },
+    "author": "infinity2zero",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/infinity2zero/portable-postgis-app.git"
+    },
+    "dependencies": {
+        "fs-extra": "^11.2.0"
+    },
+    "devDependencies": {
+        "adm-zip": "^0.5.10",
+        "electron": "^28.0.0",
+        "electron-builder": "^24.9.1",
+        "electron-reload": "^2.0.0-alpha.1",
+        "node-fetch": "^2.6.7",
+        "tar": "^6.2.0"
+    }
+}
