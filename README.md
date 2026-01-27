@@ -36,6 +36,23 @@ You can download the latest version of Portable PostGIS for Windows and macOS fr
 2.  Extract the archive (if zipped).
 3.  Run the application executable (`Portable PostGIS.exe` on Windows or `Portable PostGIS.app` on macOS).
 
+### macOS Troubleshooting ("App is damaged")
+
+If you see an error saying **"Portable PostGIS.app is damaged and can't be opened. You should move it to the Trash"** when trying to launch on macOS, this is because the app is not code-signed with an Apple Developer Certificate.
+
+To fix this, you need to remove the quarantine attribute from the app. Open your **Terminal** and run the following command:
+
+```bash
+xattr -cr /Applications/Portable\ PostGIS.app
+```
+*(Replace `/Applications/Portable\ PostGIS.app` with the actual path to where you placed the app)*
+
+Alternatively, if you haven't moved it to Applications yet and it's in your Downloads folder:
+
+```bash
+xattr -cr ~/Downloads/Portable\ PostGIS.app
+```
+
 ### Usage
 
 1.  **Dashboard**: Upon launch, the dashboard shows the status of PostgreSQL and pgAdmin services.

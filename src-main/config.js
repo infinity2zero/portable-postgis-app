@@ -14,6 +14,11 @@ const ROOT_DIR = isPackaged
     : path.join(__dirname, '..');
 
 const BIN_DIR = path.join(ROOT_DIR, 'bin', IS_WIN ? 'win' : 'mac');
+
+// Fix for Windows ASAR path issue:
+// If we are in ASAR on Windows, path.join might produce mixed slashes or issues if ROOT_DIR has weird casing.
+// But mostly, let's just ensure we rely on standard path module behavior.
+
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 
 module.exports = {

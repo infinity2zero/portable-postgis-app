@@ -224,24 +224,74 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
     // If installed in the portable python, it's likely in Lib/site-packages/pgadmin4/pgAdmin4.py
 
     // Strategy: Search for pgAdmin4.py in site-packages
+    // Note: Windows path separator handling is critical here.
+    // Standard Python layout on Windows: python.exe is in root, Lib is in root.
+    // So if python is at bin/win/python/python.exe, Lib is at bin/win/python/Lib.
     const sitePackages = config.IS_WIN
-        ? path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'Lib', 'site-packages')
-        : path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'lib', 'python3.10', 'site-packages'); // version dependent... tricky.
-
-    // Better strategy: run python and ask it?
-    // Or just look for `pgadmin4` command if it installed a script?
-    // Pip install usually creates a 'pgadmin4' script in `bin`.
-
-    const pgAdminScript = config.IS_WIN
-        ? path.join(path.dirname(config.PATHS.PYTHON_BIN), 'Scripts', 'pgadmin4.exe') // maybe?
-        : path.join(path.dirname(config.PATHS.PYTHON_BIN), 'pgadmin4');
-
-    // Let's try to run via module: python -m pgadmin4
-    // But pgadmin4 might not be runnable as module directly without setup.
-    // The standard way is `python .../pgAdmin4.py`.
+        ? path.join(path.dirname(config.PATHS.PYTHON_BIN), 'Lib', 'site-packages')
+        : path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'lib', 'python3.10', 'site-packages');
 
     // Fallback search
     let pgAdminPy = path.join(sitePackages, 'pgadmin4', 'pgAdmin4.py');
+
+    // Let's ensure sitePackages exists.
+    if (!await fs.pathExists(sitePackages)) {
+        onLog(`[pgadmin] Warning: site-packages not found at ${sitePackages}`);
+        
+        // Try looking in the '..' location just in case (old logic)
+        if (config.IS_WIN) {
+             const altSitePackages = path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'Lib', 'site-packages');
+             if (await fs.pathExists(altSitePackages)) {
+                 pgAdminPy = path.join(altSitePackages, 'pgadmin4', 'pgAdmin4.py');
+                 onLog(`[pgadmin] Found site-packages at alternate location: ${altSitePackages}`);
+             } else {
+                 // Try searching recursively in the python dir for pgAdmin4.py
+                 const pythonDir = path.dirname(config.PATHS.PYTHON_BIN);
+                 onLog(`[pgadmin] Searching for pgAdmin4.py in ${pythonDir}...`);
+                 // Simple depth-limited search could go here, but for now let's just log failure.
+             }
+        }
+    }
+    
+    // Check if pgAdmin4.py actually exists
+    if (!await fs.pathExists(pgAdminPy)) {
+        onLog(`[pgadmin] Error: pgAdmin4.py not found at ${pgAdminPy}`);
+        // Attempt to find it by walking the python directory
+        try {
+            const findFile = async (dir, filename) => {
+                const files = await fs.readdir(dir);
+                for (const file of files) {
+                    const fullPath = path.join(dir, file);
+                    const stat = await fs.stat(fullPath);
+                    if (stat.isDirectory()) {
+                        // Don't go too deep
+                        if (file === 'site-packages' || file === 'pgadmin4') {
+                             const found = await findFile(fullPath, filename);
+                             if (found) return found;
+                        }
+                    } else if (file === filename) {
+                        return fullPath;
+                    }
+                }
+                return null;
+            };
+            
+            // Search in Lib/site-packages
+            const libDir = config.IS_WIN 
+                ? path.join(path.dirname(config.PATHS.PYTHON_BIN), 'Lib')
+                : path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'lib');
+                
+            if (await fs.pathExists(libDir)) {
+                const found = await findFile(libDir, 'pgAdmin4.py');
+                if (found) {
+                    pgAdminPy = found;
+                    onLog(`[pgadmin] Found pgAdmin4.py at ${pgAdminPy}`);
+                }
+            }
+        } catch (e) {
+            onLog(`[pgadmin] Search failed: ${e.message}`);
+        }
+    }
 
     // Quick glob/find if we haven't installed it yet could fail.
     // We'll assume the setup script prints where it installed it or we assume standard layout.
@@ -274,7 +324,15 @@ MASTER_PASSWORD_REQUIRED = False
 DEFAULT_SERVER = '127.0.0.1'
 DEFAULT_SERVER_PORT = int(os.environ.get('PGADMIN_PORT', 5050))
 `;
-    await fs.writeFile(configLocalPath, configLocalContent);
+    
+    try {
+        await fs.writeFile(configLocalPath, configLocalContent);
+    } catch (err) {
+        onLog(`[pgadmin] Error writing config_local.py: ${err.message}`);
+        // If we can't write to the site-packages dir (common in some packed environments),
+        // we might need to rely solely on env vars, but pgAdmin's env var support is tricky.
+        // Let's assume for now we must fix the path if it's wrong.
+    }
 
     // Auto-register the local Postgres server if not already done
     const serversJsonPath = path.join(PATHS.DATA, 'pgadmin', 'servers.json');
