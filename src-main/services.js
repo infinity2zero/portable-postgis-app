@@ -241,9 +241,15 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
         // Try looking in the '..' location just in case (old logic)
         if (config.IS_WIN) {
              const altSitePackages = path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'Lib', 'site-packages');
+             // Also check inside python/Lib/site-packages (if PYTHON_BIN is python/python.exe)
+             const innerSitePackages = path.join(path.dirname(config.PATHS.PYTHON_BIN), 'Lib', 'site-packages');
+             
              if (await fs.pathExists(altSitePackages)) {
                  pgAdminPy = path.join(altSitePackages, 'pgadmin4', 'pgAdmin4.py');
                  onLog(`[pgadmin] Found site-packages at alternate location: ${altSitePackages}`);
+             } else if (await fs.pathExists(innerSitePackages)) {
+                 pgAdminPy = path.join(innerSitePackages, 'pgadmin4', 'pgAdmin4.py');
+                 onLog(`[pgadmin] Found site-packages at inner location: ${innerSitePackages}`);
              } else {
                  // Try searching recursively in the python dir for pgAdmin4.py
                  const pythonDir = path.dirname(config.PATHS.PYTHON_BIN);
@@ -264,8 +270,8 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
                     const fullPath = path.join(dir, file);
                     const stat = await fs.stat(fullPath);
                     if (stat.isDirectory()) {
-                        // Don't go too deep
-                        if (file === 'site-packages' || file === 'pgadmin4') {
+                        // Don't go too deep, but check pgadmin4 or site-packages or Lib
+                        if (file === 'site-packages' || file === 'pgadmin4' || file === 'Lib') {
                              const found = await findFile(fullPath, filename);
                              if (found) return found;
                         }
@@ -276,13 +282,14 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
                 return null;
             };
             
-            // Search in Lib/site-packages
-            const libDir = config.IS_WIN 
-                ? path.join(path.dirname(config.PATHS.PYTHON_BIN), 'Lib')
-                : path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'lib');
+            // Search in root of python installation
+            const pythonRoot = config.IS_WIN 
+                ? path.dirname(config.PATHS.PYTHON_BIN)
+                : path.dirname(path.dirname(config.PATHS.PYTHON_BIN)); // up from bin/python3
                 
-            if (await fs.pathExists(libDir)) {
-                const found = await findFile(libDir, 'pgAdmin4.py');
+            if (await fs.pathExists(pythonRoot)) {
+                onLog(`[pgadmin] Deep searching for pgAdmin4.py in ${pythonRoot}...`);
+                const found = await findFile(pythonRoot, 'pgAdmin4.py');
                 if (found) {
                     pgAdminPy = found;
                     onLog(`[pgadmin] Found pgAdmin4.py at ${pgAdminPy}`);
