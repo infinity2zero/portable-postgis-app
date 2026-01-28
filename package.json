@@ -1,6 +1,6 @@
 {
     "name": "portable-postgis-app",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "description": "Portable App bundling PostgreSQL, PostGIS, and pgAdmin",
     "keywords": [
         "portable",
@@ -21,6 +21,8 @@
         "start": "electron .",
         "setup": "node scripts/setup-resources.js",
         "build": "electron-builder",
+        "build:win": "node scripts/setup-resources.js --target=win && electron-builder --win",
+        "build:mac": "node scripts/setup-resources.js --target=mac && electron-builder --mac",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "build": {

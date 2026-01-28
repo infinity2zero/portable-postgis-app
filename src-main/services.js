@@ -135,8 +135,24 @@ async function startPostgres(onLog, port) {
         onLog('[postgres] Initialization complete.');
     }
 
-    // 3. Start Server
-    processManager.start('postgres', PATHS.POSTGRES_BIN, ['-D', dataDir, '-p', pgPort.toString()], {}, onLog);
+    // 3. Start Server with proper environment variables
+    // Set PostgreSQL environment variables so it can find extensions and libraries
+    const postgresBinDir = path.dirname(PATHS.POSTGRES_BIN);
+    const postgresRootDir = path.dirname(postgresBinDir);
+    const postgresShareDir = path.join(postgresRootDir, 'share');
+    const postgresLibDir = path.join(postgresRootDir, 'lib');
+    
+    const postgresEnv = {
+        ...process.env,
+        PGSHARE: postgresShareDir,
+        PGLIB: postgresLibDir,
+        // On Windows, also set PATH to include PostgreSQL bin directory
+        PATH: process.platform === 'win32' 
+            ? `${postgresBinDir}${path.delimiter}${process.env.PATH}`
+            : process.env.PATH
+    };
+    
+    processManager.start('postgres', PATHS.POSTGRES_BIN, ['-D', dataDir, '-p', pgPort.toString()], { env: postgresEnv }, onLog);
 
     // 4. Wait for readiness and fix (Ensure default DB exists and user is superuser)
     try {
@@ -175,10 +191,10 @@ function waitForPort(port) {
 }
 
 async function ensureDatabaseFixed(port, binPath, onLog) {
-    const { exec } = require('child_process');
-    const execAsync = require('util').promisify(exec);
+    const { execFile } = require('child_process');
+    const execFileAsync = require('util').promisify(execFile);
     
-    // Construct paths
+    // Construct paths - normalize for Windows
     let createdbBin = path.join(path.dirname(binPath), 'createdb');
     let psqlBin = path.join(path.dirname(binPath), 'psql');
     
@@ -187,26 +203,135 @@ async function ensureDatabaseFixed(port, binPath, onLog) {
         psqlBin += '.exe';
     }
 
+    // Set PostgreSQL environment variables so it can find extensions
+    // PGSHARE points to the share directory where extensions are located
+    const postgresShareDir = path.join(path.dirname(path.dirname(binPath)), 'share');
+    const postgresLibDir = path.join(path.dirname(path.dirname(binPath)), 'lib');
+    
+    // Try both possible locations for share directory
+    let sharePath = path.join(postgresShareDir, 'extension');
+    if (!await fs.pathExists(sharePath)) {
+        sharePath = path.join(postgresShareDir, 'postgresql', 'extension');
+    }
+    
+    const env = {
+        ...process.env,
+        PGSHARE: postgresShareDir,
+        PGLIB: postgresLibDir
+    };
+
     // 1. Ensure 'postgres' database exists
+    // First check if it exists by trying to connect
+    let dbExists = false;
     try {
-        // createdb -h 127.0.0.1 -p port -U postgres -w postgres
-        // We use -w (no password) assuming trust auth
-        // We use template1 as maintenance db to connect to because 'postgres' might not exist yet
-        await execAsync(`"${createdbBin}" -h 127.0.0.1 -p ${port} -U postgres -w -d template1 -e postgres`);
-        onLog('[postgres] Created default "postgres" database.');
+        await execFileAsync(psqlBin, [
+            '-h', '127.0.0.1',
+            '-p', port.toString(),
+            '-U', 'postgres',
+            '-w',
+            '-d', 'postgres',
+            '-c', 'SELECT 1;'
+        ], { env, timeout: 5000 });
+        dbExists = true;
+        onLog('[postgres] Database "postgres" already exists.');
     } catch (e) {
-        // Ignore error if it already exists
-        if (!e.message.includes('already exists')) {
-             onLog(`[postgres] Warning: createdb failed (might already exist): ${e.message}`);
+        // Database doesn't exist or connection failed, try to create it
+        try {
+            // Use execFile with proper arguments array for Windows compatibility
+            // createdb -h 127.0.0.1 -p port -U postgres -w postgres
+            // We use -w (no password) assuming trust auth
+            // We use template1 as maintenance db to connect to because 'postgres' might not exist yet
+            await execFileAsync(createdbBin, [
+                '-h', '127.0.0.1',
+                '-p', port.toString(),
+                '-U', 'postgres',
+                '-w',
+                '-d', 'template1',
+                '-e',
+                'postgres'
+            ], { env, timeout: 10000 });
+            onLog('[postgres] Created default "postgres" database.');
+            dbExists = true;
+        } catch (createError) {
+            // Ignore error if it already exists
+            const errorMsg = createError.message || createError.stderr?.toString() || '';
+            if (errorMsg.includes('already exists') || errorMsg.includes('duplicate')) {
+                onLog('[postgres] Database "postgres" already exists.');
+                dbExists = true;
+            } else {
+                onLog(`[postgres] Error: Failed to create database "postgres": ${errorMsg}`);
+                onLog(`[postgres] createdb path: ${createdbBin}`);
+                onLog(`[postgres] This may prevent extensions from being enabled.`);
+            }
         }
+    }
+    
+    // If database doesn't exist, we can't proceed with extension setup
+    if (!dbExists) {
+        onLog('[postgres] Cannot proceed with extension setup - database does not exist.');
+        return;
     }
 
     // 2. Ensure 'postgres' user is superuser (just in case)
     try {
-        await execAsync(`"${psqlBin}" -h 127.0.0.1 -p ${port} -U postgres -w -c "ALTER USER postgres WITH SUPERUSER CREATEDB;"`);
+        await execFileAsync(psqlBin, [
+            '-h', '127.0.0.1',
+            '-p', port.toString(),
+            '-U', 'postgres',
+            '-w',
+            '-d', 'postgres',
+            '-c', 'ALTER USER postgres WITH SUPERUSER CREATEDB;'
+        ], { env });
         onLog('[postgres] Ensured "postgres" user privileges.');
     } catch (e) {
-        onLog(`[postgres] Warning: Failed to update user privileges: ${e.message}`);
+        const errorMsg = e.message || e.stderr?.toString() || '';
+        onLog(`[postgres] Warning: Failed to update user privileges: ${errorMsg}`);
+    }
+
+    // 3. Ensure 'postgis' extension is enabled in 'postgres' database
+    // This is important because users expect it to be ready.
+    // First verify the extension files exist
+    const postgisControl = path.join(sharePath, 'postgis.control');
+    if (!await fs.pathExists(postgisControl)) {
+        onLog(`[postgres] Warning: PostGIS extension not found at ${postgisControl}. Skipping extension enable.`);
+        onLog(`[postgres] Share directory: ${postgresShareDir}`);
+        onLog(`[postgres] Extension directory: ${sharePath}`);
+        return;
+    }
+
+    try {
+        await execFileAsync(psqlBin, [
+            '-h', '127.0.0.1',
+            '-p', port.toString(),
+            '-U', 'postgres',
+            '-w',
+            '-d', 'postgres',
+            '-c', 'CREATE EXTENSION IF NOT EXISTS postgis;'
+        ], { env });
+        onLog('[postgres] Enabled PostGIS extension.');
+    } catch (e) {
+        const errorMsg = e.message || e.stderr?.toString() || '';
+        onLog(`[postgres] Warning: Failed to enable PostGIS extension: ${errorMsg}`);
+        onLog(`[postgres] Extension path: ${sharePath}`);
+    }
+
+    // Try pgRouting if available
+    const pgroutingControl = path.join(sharePath, 'pgrouting.control');
+    if (await fs.pathExists(pgroutingControl)) {
+        try {
+            await execFileAsync(psqlBin, [
+                '-h', '127.0.0.1',
+                '-p', port.toString(),
+                '-U', 'postgres',
+                '-w',
+                '-d', 'postgres',
+                '-c', 'CREATE EXTENSION IF NOT EXISTS pgrouting;'
+            ], { env });
+            onLog('[postgres] Enabled pgRouting extension.');
+        } catch (e) {
+            const errorMsg = e.message || e.stderr?.toString() || '';
+            onLog(`[postgres] Warning: Failed to enable pgRouting extension: ${errorMsg}`);
+        }
     }
 }
 
@@ -264,28 +389,34 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
         onLog(`[pgadmin] Error: pgAdmin4.py not found at ${pgAdminPy}`);
         // Attempt to find it by walking the python directory
         try {
-            const findFile = async (dir, filename) => {
+            const findFile = async (dir, filename, depth = 0) => {
+                if (depth > 5) return null; // Prevent infinite recursion
                 const files = await fs.readdir(dir);
                 for (const file of files) {
                     const fullPath = path.join(dir, file);
-                    const stat = await fs.stat(fullPath);
-                    if (stat.isDirectory()) {
-                        // Don't go too deep, but check pgadmin4 or site-packages or Lib
-                        if (file === 'site-packages' || file === 'pgadmin4' || file === 'Lib') {
-                             const found = await findFile(fullPath, filename);
-                             if (found) return found;
+                    try {
+                        const stat = await fs.stat(fullPath);
+                        if (stat.isDirectory()) {
+                            // Don't go too deep, but check pgadmin4 or site-packages or Lib
+                            // Also check just 'Lib' or 'site-packages'
+                            if (file === 'site-packages' || file === 'pgadmin4' || file === 'Lib' || file === 'python') {
+                                 const found = await findFile(fullPath, filename, depth + 1);
+                                 if (found) return found;
+                            }
+                        } else if (file === filename) {
+                            return fullPath;
                         }
-                    } else if (file === filename) {
-                        return fullPath;
+                    } catch (e) {
+                        // Ignore access errors
                     }
                 }
                 return null;
             };
             
             // Search in root of python installation
-            const pythonRoot = config.IS_WIN 
-                ? path.dirname(config.PATHS.PYTHON_BIN)
-                : path.dirname(path.dirname(config.PATHS.PYTHON_BIN)); // up from bin/python3
+            // For portable python, it might be nested. 
+            // C:\...\bin\win\python\python.exe -> Root is C:\...\bin\win\python
+            const pythonRoot = path.dirname(config.PATHS.PYTHON_BIN);
                 
             if (await fs.pathExists(pythonRoot)) {
                 onLog(`[pgadmin] Deep searching for pgAdmin4.py in ${pythonRoot}...`);

@@ -302,13 +302,26 @@ ipcMain.handle('check-extensions', async () => {
         psqlPath = psqlPath.replace(/postgres$/, 'psql');
     }
 
-    const { exec } = require('child_process');
-    const execAsync = require('util').promisify(exec);
+    const { execFile } = require('child_process');
+    const execFileAsync = require('util').promisify(execFile);
+    
+    // Set PostgreSQL environment variables
+    const postgresShareDir = path.join(path.dirname(path.dirname(psqlPath)), 'share');
+    const postgresLibDir = path.join(path.dirname(path.dirname(psqlPath)), 'lib');
+    const env = {
+        ...process.env,
+        PGSHARE: postgresShareDir,
+        PGLIB: postgresLibDir
+    };
     
     try {
         // Query pg_extension catalog: name|version
-        const cmd = `"${psqlPath}" -U postgres -d postgres -A -t -c "SELECT extname, extversion FROM pg_extension;"`;
-        const { stdout } = await execAsync(cmd);
+        const { stdout } = await execFileAsync(psqlPath, [
+            '-U', 'postgres',
+            '-d', 'postgres',
+            '-A', '-t',
+            '-c', 'SELECT extname, extversion FROM pg_extension;'
+        ], { env });
         
         const extensions = stdout.trim().split('\n').map(line => {
             const parts = line.trim().split('|');
@@ -320,7 +333,7 @@ ipcMain.handle('check-extensions', async () => {
         
         return extensions;
     } catch (e) {
-        console.error('Failed to check extensions:', e);
+        console.error('Failed to check extensions:', e.message || e);
         return [];
     }
 });
@@ -373,20 +386,36 @@ ipcMain.handle('enable-extension', async (event, extName) => {
         psqlPath = psqlPath.replace(/postgres$/, 'psql');
     }
 
-    const { exec } = require('child_process');
-    const execAsync = require('util').promisify(exec);
+    const { execFile } = require('child_process');
+    const execFileAsync = require('util').promisify(execFile);
+    
+    // Set PostgreSQL environment variables
+    const postgresShareDir = path.join(path.dirname(path.dirname(psqlPath)), 'share');
+    const postgresLibDir = path.join(path.dirname(path.dirname(psqlPath)), 'lib');
+    const env = {
+        ...process.env,
+        PGSHARE: postgresShareDir,
+        PGLIB: postgresLibDir
+    };
     
     try {
         // Sanitize extName to avoid injection (basic check)
         if (!/^[a-zA-Z0-9_]+$/.test(extName)) {
-                    throw new Error("Invalid extension name");
-                }
-                const cmd = `"${psqlPath}" -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS \\"${extName}\\" CASCADE;"`;
-                await execAsync(cmd);
-                return { success: true };
+            throw new Error("Invalid extension name");
+        }
+        
+        // Use execFile with proper arguments array
+        await execFileAsync(psqlPath, [
+            '-U', 'postgres',
+            '-d', 'postgres',
+            '-c', `CREATE EXTENSION IF NOT EXISTS "${extName}" CASCADE;`
+        ], { env });
+        
+        return { success: true };
     } catch (e) {
-        console.error(`Failed to enable extension ${extName}:`, e);
-        return { success: false, error: e.message };
+        const errorMsg = e.message || e.stderr?.toString() || 'Unknown error';
+        console.error(`Failed to enable extension ${extName}:`, errorMsg);
+        return { success: false, error: errorMsg };
     }
 });
 
@@ -398,20 +427,36 @@ ipcMain.handle('disable-extension', async (event, extName) => {
         psqlPath = psqlPath.replace(/postgres$/, 'psql');
     }
 
-    const { exec } = require('child_process');
-    const execAsync = require('util').promisify(exec);
+    const { execFile } = require('child_process');
+    const execFileAsync = require('util').promisify(execFile);
+    
+    // Set PostgreSQL environment variables
+    const postgresShareDir = path.join(path.dirname(path.dirname(psqlPath)), 'share');
+    const postgresLibDir = path.join(path.dirname(path.dirname(psqlPath)), 'lib');
+    const env = {
+        ...process.env,
+        PGSHARE: postgresShareDir,
+        PGLIB: postgresLibDir
+    };
     
     try {
         // Sanitize extName to avoid injection (basic check)
         if (!/^[a-zA-Z0-9_]+$/.test(extName)) {
             throw new Error("Invalid extension name");
         }
-        const cmd = `"${psqlPath}" -U postgres -d postgres -c "DROP EXTENSION IF EXISTS \\"${extName}\\" CASCADE;"`;
-        await execAsync(cmd);
+        
+        // Use execFile with proper arguments array
+        await execFileAsync(psqlPath, [
+            '-U', 'postgres',
+            '-d', 'postgres',
+            '-c', `DROP EXTENSION IF EXISTS "${extName}" CASCADE;`
+        ], { env });
+        
         return { success: true };
     } catch (e) {
-        console.error(`Failed to disable extension ${extName}:`, e);
-        return { success: false, error: e.message };
+        const errorMsg = e.message || e.stderr?.toString() || 'Unknown error';
+        console.error(`Failed to disable extension ${extName}:`, errorMsg);
+        return { success: false, error: errorMsg };
     }
 });
 
