@@ -288,22 +288,38 @@ async function installPython(targetOS) {
 
     console.log(`[${targetOS}] Searching for ${binaryName}...`);
     const foundPath = await findBinary(extractPath, binaryName);
-
+    
     if (foundPath) {
         console.log(`[${targetOS}] Found binary at ${foundPath}`);
-        // Determine the root of the python installation
-        // If binary is 'python.exe', root is dirname(foundPath)
-        // If binary is 'bin/python3', root is dirname(dirname(foundPath))
         
+        // Determine the root of the Python installation.
+        // For macOS we keep the existing logic (bin/python3 layout).
+        // For Windows, indygreg builds can place python.exe deep under
+        // python/Lib/venv/scripts/nt, so we walk up until we hit the
+        // top-level "python" directory to preserve Lib/, DLLs, etc.
         let sourceRoot = path.dirname(foundPath);
-        // If targetEnd contained separators (e.g. bin/python3), go up
-        const parts = binaryName.split(path.sep);
-        if (parts.length > 1) {
-            for (let i = 0; i < parts.length - 1; i++) {
-                sourceRoot = path.dirname(sourceRoot);
+        
+        if (targetOS === 'win') {
+            let candidate = sourceRoot;
+            while (
+                candidate.startsWith(extractPath) &&
+                candidate !== extractPath &&
+                path.basename(candidate).toLowerCase() !== 'python'
+            ) {
+                candidate = path.dirname(candidate);
+            }
+            sourceRoot = candidate;
+            console.log(`[${targetOS}] Using Python root at ${sourceRoot}`);
+        } else {
+            // Non-Windows: If binary is 'bin/python3', root is dirname(dirname(foundPath))
+            const parts = binaryName.split(path.sep);
+            if (parts.length > 1) {
+                for (let i = 0; i < parts.length - 1; i++) {
+                    sourceRoot = path.dirname(sourceRoot);
+                }
             }
         }
-
+        
         if (sourceRoot !== extractPath) {
             console.log(`[${targetOS}] Flattening from ${sourceRoot} to ${extractPath}...`);
             const contents = await fs.readdir(sourceRoot);
@@ -311,8 +327,16 @@ async function installPython(targetOS) {
                 // Move items up
                 await fs.move(path.join(sourceRoot, item), path.join(extractPath, item), { overwrite: true });
             }
-            // Try to remove the now empty source directories if they are inside extractPath
-            // (Optional, keeps things clean)
+        }
+        
+        // Sanity check: ensure Lib directory exists after flattening (important for pgAdmin)
+        const libDir = path.join(extractPath, 'Lib');
+        if (targetOS === 'win') {
+            if (await fs.pathExists(libDir)) {
+                console.log(`[${targetOS}] Verified Python Lib directory at ${libDir}`);
+            } else {
+                console.warn(`[${targetOS}] WARNING: Python Lib directory not found at ${libDir}. pgAdmin/venv may fail.`);
+            }
         }
     } else {
         throw new Error(`Could not find ${binaryName} in extracted files.`);
