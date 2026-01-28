@@ -506,6 +506,33 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
         const venvDir = path.join(pythonBaseDir, 'pgadmin-venv');
         const venvPython = path.join(venvDir, 'Scripts', 'python.exe');
         if (await fs.pathExists(venvPython)) {
+            // Before using the venv, fix pyvenv.cfg if it still points to a CI/home path (e.g. D:\a\...).
+            // When the venv is created on CI and then moved into C:\Softwares\..., the "home" entry in
+            // pyvenv.cfg still references the original base Python, which causes errors like:
+            //   No Python at "D:\a\portable-postgis-app\portable-postgis-app\bin\win\python\python.exe"
+            const venvCfg = path.join(venvDir, 'pyvenv.cfg');
+            const bundledBasePython = PATHS.PYTHON_BIN; // e.g. ...\bin\win\python\python.exe
+
+            try {
+                if (await fs.pathExists(venvCfg) && await fs.pathExists(bundledBasePython)) {
+                    let cfgText = await fs.readFile(venvCfg, 'utf8');
+
+                    const homeLineRegex = /^home\s*=\s*.*$/m;
+                    const newHomeLine = `home = ${bundledBasePython.replace(/\\/g, '\\\\')}`;
+
+                    if (homeLineRegex.test(cfgText)) {
+                        cfgText = cfgText.replace(homeLineRegex, newHomeLine);
+                    } else {
+                        cfgText += `\n${newHomeLine}\n`;
+                    }
+
+                    await fs.writeFile(venvCfg, cfgText, 'utf8');
+                    onLog(`[pgadmin] Patched pyvenv.cfg home to ${bundledBasePython}`);
+                }
+            } catch (e) {
+                onLog(`[pgadmin] Warning: Failed to patch pyvenv.cfg: ${e.message}`);
+            }
+
             onLog(`[pgadmin] Using venv Python at ${venvPython}`);
             pythonBin = venvPython;
             pythonBaseDir = venvDir;
