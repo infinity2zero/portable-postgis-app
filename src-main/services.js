@@ -137,14 +137,38 @@ async function startPostgres(onLog, port) {
 
     // 3. Start Server with proper environment variables
     // Set PostgreSQL environment variables so it can find extensions and libraries.
-    // As above, prefer .../share/postgresql if present, otherwise fall back to .../share.
+    // Detect which share layout exists (share/postgresql vs share)
     const postgresBinDir = path.dirname(PATHS.POSTGRES_BIN);
     const postgresRootDir = path.dirname(postgresBinDir);
-    let baseShareRoot = path.join(postgresRootDir, 'share', 'postgresql');
-    if (!await fs.pathExists(baseShareRoot)) {
-        baseShareRoot = path.join(postgresRootDir, 'share');
-    }
     const postgresLibDir = path.join(postgresRootDir, 'lib');
+    
+    // Check both possible extension locations to determine correct PGSHARE
+    const shareExtPath1 = path.join(postgresRootDir, 'share', 'extension');
+    const shareExtPath2 = path.join(postgresRootDir, 'share', 'postgresql', 'extension');
+    
+    let baseShareRoot;
+    if (await fs.pathExists(shareExtPath2)) {
+        try {
+            const files = await fs.readdir(shareExtPath2);
+            if (files.length > 0) {
+                baseShareRoot = path.join(postgresRootDir, 'share', 'postgresql');
+                onLog(`[postgres] Using PGSHARE: ${baseShareRoot} (found ${files.length} extensions)`);
+            } else {
+                baseShareRoot = path.join(postgresRootDir, 'share');
+                onLog(`[postgres] Using PGSHARE: ${baseShareRoot} (share/postgresql/extension is empty)`);
+            }
+        } catch (e) {
+            baseShareRoot = path.join(postgresRootDir, 'share');
+            onLog(`[postgres] Using PGSHARE: ${baseShareRoot} (fallback)`);
+        }
+    } else if (await fs.pathExists(shareExtPath1)) {
+        baseShareRoot = path.join(postgresRootDir, 'share');
+        onLog(`[postgres] Using PGSHARE: ${baseShareRoot}`);
+    } else {
+        // Fallback - should not happen if Postgres is properly installed
+        baseShareRoot = path.join(postgresRootDir, 'share');
+        onLog(`[postgres] ⚠️  WARNING: Extension directories not found. Using fallback PGSHARE: ${baseShareRoot}`);
+    }
     
     const postgresEnv = {
         ...process.env,
@@ -194,6 +218,29 @@ function waitForPort(port) {
     });
 }
 
+// Helper: Query PostgreSQL for available extensions (more reliable than file system checks)
+async function queryAvailableExtensions(psqlBin, port, env) {
+    const { execFile } = require('child_process');
+    const execFileAsync = require('util').promisify(execFile);
+    
+    try {
+        const { stdout } = await execFileAsync(psqlBin, [
+            '-h', '127.0.0.1',
+            '-p', port.toString(),
+            '-U', 'postgres',
+            '-w',
+            '-d', 'postgres',
+            '-A', '-t',
+            '-c', "SELECT name FROM pg_available_extensions WHERE name IN ('postgis', 'postgis_topology', 'postgis_raster', 'pgrouting', 'fuzzystrmatch') ORDER BY name;"
+        ], { env, timeout: 5000 });
+        
+        const extensions = stdout.trim().split('\n').filter(line => line.trim().length > 0);
+        return extensions;
+    } catch (e) {
+        return [];
+    }
+}
+
 async function ensureDatabaseFixed(port, binPath, onLog) {
     const { execFile } = require('child_process');
     const execFileAsync = require('util').promisify(execFile);
@@ -211,19 +258,49 @@ async function ensureDatabaseFixed(port, binPath, onLog) {
     // On Windows distributions, extensions may live under either:
     //   .../postgres/share/extension
     //   .../postgres/share/postgresql/extension
-    // We prefer the 'share/postgresql' layout if it exists and point PGSHARE there,
-    // so the server looks in the correct place for control files.
+    // We need to detect which layout exists and set PGSHARE accordingly.
     const postgresRootDir = path.dirname(path.dirname(binPath)); // .../postgres
     const postgresLibDir = path.join(postgresRootDir, 'lib');
 
-    // Determine the base share root that actually exists
-    let baseShareRoot = path.join(postgresRootDir, 'share', 'postgresql');
-    if (!await fs.pathExists(baseShareRoot)) {
+    // Check both possible extension locations
+    const shareExtPath1 = path.join(postgresRootDir, 'share', 'extension');
+    const shareExtPath2 = path.join(postgresRootDir, 'share', 'postgresql', 'extension');
+    
+    let baseShareRoot;
+    let sharePath;
+    
+    // Prefer share/postgresql/extension if it exists and has files, otherwise use share/extension
+    if (await fs.pathExists(shareExtPath2)) {
+        try {
+            const files = await fs.readdir(shareExtPath2);
+            if (files.length > 0) {
+                baseShareRoot = path.join(postgresRootDir, 'share', 'postgresql');
+                sharePath = shareExtPath2;
+                onLog(`[postgres] Using extension directory: ${sharePath} (${files.length} files found)`);
+            } else {
+                // Empty directory, try the other location
+                baseShareRoot = path.join(postgresRootDir, 'share');
+                sharePath = shareExtPath1;
+                onLog(`[postgres] share/postgresql/extension is empty, trying share/extension`);
+            }
+        } catch (e) {
+            // Fallback to share/extension
+            baseShareRoot = path.join(postgresRootDir, 'share');
+            sharePath = shareExtPath1;
+            onLog(`[postgres] Could not read share/postgresql/extension, using share/extension`);
+        }
+    } else if (await fs.pathExists(shareExtPath1)) {
         baseShareRoot = path.join(postgresRootDir, 'share');
+        sharePath = shareExtPath1;
+        onLog(`[postgres] Using extension directory: ${sharePath}`);
+    } else {
+        // Neither exists - this is a problem
+        baseShareRoot = path.join(postgresRootDir, 'share');
+        sharePath = shareExtPath1; // Default for PGSHARE, but we'll log error below
+        onLog(`[postgres] ⚠️  WARNING: Neither extension directory found. Expected at:`);
+        onLog(`[postgres]   - ${shareExtPath1}`);
+        onLog(`[postgres]   - ${shareExtPath2}`);
     }
-
-    // Extension directory under the chosen share root
-    let sharePath = path.join(baseShareRoot, 'extension');
     
     const env = {
         ...process.env,
@@ -299,50 +376,119 @@ async function ensureDatabaseFixed(port, binPath, onLog) {
         onLog(`[postgres] Warning: Failed to update user privileges: ${errorMsg}`);
     }
 
-    // 3. Ensure 'postgis' extension is enabled in 'postgres' database
-    // This is important because users expect it to be ready.
-    // First verify the extension files exist
-    const postgisControl = path.join(sharePath, 'postgis.control');
-    if (!await fs.pathExists(postgisControl)) {
-        onLog(`[postgres] Warning: PostGIS extension not found at ${postgisControl}. Skipping extension enable.`);
-        onLog(`[postgres] Share root: ${baseShareRoot}`);
+    // 3. Enable PostGIS extensions in 'postgres' database
+    // First, query PostgreSQL to see what extensions are actually available
+    // This is more reliable than file system checks
+    onLog('[postgres] Checking available extensions from PostgreSQL catalog...');
+    const availableExtensions = await queryAvailableExtensions(psqlBin, port, env);
+    
+    if (availableExtensions.length > 0) {
+        onLog(`[postgres] Available extensions: ${availableExtensions.join(', ')}`);
+    } else {
+        onLog('[postgres] ⚠️  No PostGIS-related extensions found in PostgreSQL catalog.');
+        onLog('[postgres] This may indicate PostGIS files are missing or PostgreSQL cannot find them.');
+    }
+    
+    // Also check file system for debugging
+    const postgisControl1 = path.join(shareExtPath1, 'postgis.control');
+    const postgisControl2 = path.join(shareExtPath2, 'postgis.control');
+    const postgisControlExists = await fs.pathExists(postgisControl1) || await fs.pathExists(postgisControl2);
+    
+    if (postgisControlExists) {
+        const foundControlPath = await fs.pathExists(postgisControl1) ? postgisControl1 : postgisControl2;
+        onLog(`[postgres] PostGIS control file found at: ${foundControlPath}`);
+    } else {
+        onLog(`[postgres] ⚠️  PostGIS control file not found in file system.`);
+        onLog(`[postgres] Checked:`);
+        onLog(`[postgres]   - ${postgisControl1}`);
+        onLog(`[postgres]   - ${postgisControl2}`);
+    }
+    
+    // Only proceed if PostGIS is available in PostgreSQL catalog
+    if (!availableExtensions.includes('postgis')) {
+        onLog(`[postgres] ⚠️  PostGIS not available in PostgreSQL. Skipping auto-enable.`);
+        onLog(`[postgres] PGSHARE: ${baseShareRoot}`);
         onLog(`[postgres] Extension directory: ${sharePath}`);
+        onLog(`[postgres] You may need to verify PostGIS installation or set PGSHARE correctly.`);
         return;
     }
 
+    // Try to enable PostGIS - use query to check if it's already enabled first
     try {
-        await execFileAsync(psqlBin, [
+        // Check if already enabled
+        const checkResult = await execFileAsync(psqlBin, [
             '-h', '127.0.0.1',
             '-p', port.toString(),
             '-U', 'postgres',
             '-w',
             '-d', 'postgres',
-            '-c', 'CREATE EXTENSION IF NOT EXISTS postgis;'
+            '-A', '-t',
+            '-c', "SELECT COUNT(*) FROM pg_extension WHERE extname = 'postgis';"
         ], { env });
-        onLog('[postgres] Enabled PostGIS extension.');
-    } catch (e) {
-        const errorMsg = e.message || e.stderr?.toString() || '';
-        onLog(`[postgres] Warning: Failed to enable PostGIS extension: ${errorMsg}`);
-        onLog(`[postgres] Extension path: ${sharePath}`);
-    }
-
-    // Try pgRouting if available
-    const pgroutingControl = path.join(sharePath, 'pgrouting.control');
-    if (await fs.pathExists(pgroutingControl)) {
-        try {
+        
+        const isEnabled = parseInt(checkResult.stdout.trim(), 10) > 0;
+        
+        if (!isEnabled) {
+            onLog('[postgres] Enabling PostGIS extension...');
             await execFileAsync(psqlBin, [
                 '-h', '127.0.0.1',
                 '-p', port.toString(),
                 '-U', 'postgres',
                 '-w',
                 '-d', 'postgres',
-                '-c', 'CREATE EXTENSION IF NOT EXISTS pgrouting;'
+                '-c', 'CREATE EXTENSION IF NOT EXISTS postgis;'
             ], { env });
-            onLog('[postgres] Enabled pgRouting extension.');
+            onLog('[postgres] ✅ PostGIS extension enabled successfully.');
+        } else {
+            onLog('[postgres] ✅ PostGIS extension already enabled.');
+        }
+    } catch (e) {
+        const errorMsg = e.message || e.stderr?.toString() || '';
+        onLog(`[postgres] ❌ Failed to enable PostGIS extension: ${errorMsg}`);
+        onLog(`[postgres] PGSHARE: ${baseShareRoot}`);
+        onLog(`[postgres] Extension directory: ${sharePath}`);
+        onLog(`[postgres] Control file found at: ${foundControlPath}`);
+    }
+
+    // Try pgRouting if available
+    const pgroutingControl1 = path.join(shareExtPath1, 'pgrouting.control');
+    const pgroutingControl2 = path.join(shareExtPath2, 'pgrouting.control');
+    const pgroutingControlExists = await fs.pathExists(pgroutingControl1) || await fs.pathExists(pgroutingControl2);
+    
+    if (pgroutingControlExists) {
+        try {
+            const checkResult = await execFileAsync(psqlBin, [
+                '-h', '127.0.0.1',
+                '-p', port.toString(),
+                '-U', 'postgres',
+                '-w',
+                '-d', 'postgres',
+                '-A', '-t',
+                '-c', "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pgrouting';"
+            ], { env });
+            
+            const isEnabled = parseInt(checkResult.stdout.trim(), 10) > 0;
+            
+            if (!isEnabled) {
+                onLog('[postgres] Enabling pgRouting extension...');
+                await execFileAsync(psqlBin, [
+                    '-h', '127.0.0.1',
+                    '-p', port.toString(),
+                    '-U', 'postgres',
+                    '-w',
+                    '-d', 'postgres',
+                    '-c', 'CREATE EXTENSION IF NOT EXISTS pgrouting;'
+                ], { env });
+                onLog('[postgres] ✅ pgRouting extension enabled successfully.');
+            } else {
+                onLog('[postgres] ✅ pgRouting extension already enabled.');
+            }
         } catch (e) {
             const errorMsg = e.message || e.stderr?.toString() || '';
-            onLog(`[postgres] Warning: Failed to enable pgRouting extension: ${errorMsg}`);
+            onLog(`[postgres] ⚠️  Failed to enable pgRouting extension: ${errorMsg}`);
         }
+    } else {
+        onLog('[postgres] pgRouting extension not found (optional).');
     }
 }
 

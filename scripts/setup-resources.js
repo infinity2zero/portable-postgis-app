@@ -212,31 +212,82 @@ async function installPostgres(targetOS) {
 
     // Install PostGIS for Windows (Check if installed separately)
     if (postgresInstalled && (process.platform === 'win32' || targetOS === 'win')) {
-        const postgisControlPath = path.join(extractPath, 'share', 'extension', 'postgis.control');
-
-        if (!await fs.pathExists(postgisControlPath)) {
-            console.log(`[${targetOS}] Installing PostGIS extensions...`);
+        // Check both possible PostGIS locations
+        const postgisControlPath1 = path.join(extractPath, 'share', 'extension', 'postgis.control');
+        const postgisControlPath2 = path.join(extractPath, 'share', 'postgresql', 'extension', 'postgis.control');
+        
+        const postgisInstalled = await fs.pathExists(postgisControlPath1) || await fs.pathExists(postgisControlPath2);
+        
+        if (!postgisInstalled) {
+            console.log(`[${targetOS}] PostGIS not found. Installing PostGIS extensions...`);
+            console.log(`[${targetOS}] Checking locations:`);
+            console.log(`[${targetOS}]   - ${postgisControlPath1}`);
+            console.log(`[${targetOS}]   - ${postgisControlPath2}`);
+            
             const postgisUrl = process.env.POSTGIS_URL || CONFIG.win.postgis;
             const postgisFilename = path.basename(postgisUrl);
             const postgisDownloadPath = path.join(binRoot, postgisFilename);
 
             try {
                 await downloadFile(postgisUrl, postgisDownloadPath);
+                console.log(`[${targetOS}] PostGIS bundle downloaded: ${postgisFilename}`);
 
-                console.log(`[${targetOS}] Extracting PostGIS...`);
+                console.log(`[${targetOS}] Extracting PostGIS into ${extractPath}...`);
                 const postgisZip = new AdmZip(postgisDownloadPath);
+                
+                // List contents before extraction for debugging
+                const zipEntries = postgisZip.getEntries();
+                console.log(`[${targetOS}] PostGIS zip contains ${zipEntries.length} entries`);
+                
                 // Extract directly into postgres folder to merge bin/share/lib
                 postgisZip.extractAllTo(extractPath, true);
+                console.log(`[${targetOS}] PostGIS extracted.`);
+
+                // Verify PostGIS files were extracted correctly
+                const verifyPath1 = path.join(extractPath, 'share', 'extension', 'postgis.control');
+                const verifyPath2 = path.join(extractPath, 'share', 'postgresql', 'extension', 'postgis.control');
+                
+                if (await fs.pathExists(verifyPath1)) {
+                    console.log(`[${targetOS}] ✅ PostGIS verified at: ${verifyPath1}`);
+                } else if (await fs.pathExists(verifyPath2)) {
+                    console.log(`[${targetOS}] ✅ PostGIS verified at: ${verifyPath2}`);
+                } else {
+                    // List what actually exists in share directories
+                    const shareDir = path.join(extractPath, 'share');
+                    if (await fs.pathExists(shareDir)) {
+                        try {
+                            const shareContents = await fs.readdir(shareDir);
+                            console.log(`[${targetOS}] Share directory contents: ${shareContents.join(', ')}`);
+                            
+                            // Check extension directories
+                            const extDir1 = path.join(shareDir, 'extension');
+                            const extDir2 = path.join(shareDir, 'postgresql', 'extension');
+                            
+                            if (await fs.pathExists(extDir1)) {
+                                const extFiles1 = await fs.readdir(extDir1);
+                                console.log(`[${targetOS}] share/extension contains: ${extFiles1.slice(0, 10).join(', ')}${extFiles1.length > 10 ? '...' : ''}`);
+                            }
+                            if (await fs.pathExists(extDir2)) {
+                                const extFiles2 = await fs.readdir(extDir2);
+                                console.log(`[${targetOS}] share/postgresql/extension contains: ${extFiles2.slice(0, 10).join(', ')}${extFiles2.length > 10 ? '...' : ''}`);
+                            }
+                        } catch (e) {
+                            console.warn(`[${targetOS}] Could not list share directory: ${e.message}`);
+                        }
+                    }
+                    console.warn(`[${targetOS}] ⚠️  PostGIS control file not found after extraction. PostGIS may not work correctly.`);
+                }
 
                 await fs.remove(postgisDownloadPath);
-                console.log(`[${targetOS}] PostGIS installed.`);
+                console.log(`[${targetOS}] PostGIS installation complete.`);
             } catch (e) {
                 // Non-fatal: log and continue so Python can still be installed
-                console.warn(`[${targetOS}] Warning: Failed to download/install PostGIS from ${postgisUrl}: ${e.message}`);
+                console.error(`[${targetOS}] ❌ Failed to download/install PostGIS from ${postgisUrl}: ${e.message}`);
                 console.warn(`[${targetOS}] Continuing without PostGIS - you can set POSTGIS_URL in CI to a valid bundle URL.`);
             }
         } else {
-            console.log(`[${targetOS}] PostGIS already installed.`);
+            const foundPath = await fs.pathExists(postgisControlPath1) ? postgisControlPath1 : postgisControlPath2;
+            console.log(`[${targetOS}] ✅ PostGIS already installed at: ${foundPath}`);
         }
     }
 }
