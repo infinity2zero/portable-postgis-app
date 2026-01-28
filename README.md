@@ -1,6 +1,3 @@
-## Currently windows build isn't working , I am working on it.
-
-
 # Portable PostGIS App
 
 ![Portable PostGIS Demo](src/assets/portablepostgres-rec.gif)
@@ -61,9 +58,26 @@ xattr -cr ~/Downloads/Portable\ PostGIS.app
 1.  **Dashboard**: Upon launch, the dashboard shows the status of PostgreSQL and pgAdmin services.
 2.  **Start Services**: Click "Start" next to PostgreSQL. Once running, you can start pgAdmin.
 3.  **Access Database**: Switch to the "Database" tab to open the embedded pgAdmin interface.
-    *   **Default User**: `postgres`
-    *   **Default Password**: `postgres`
+    - **Default User**: `postgres`
+    - **Default Password**: `postgres`
 4.  **Settings**: Configure ports (default 5432 for Postgres, 5050 for pgAdmin) and manage extensions.
+
+### Manually adding the server in pgAdmin (Windows & macOS)
+
+In some builds, the default PostgreSQL server may not appear automatically in pgAdmin. You can add it manually:
+
+1. **Open pgAdmin 4** from the app’s **Database** tab.
+2. In the pgAdmin tree on the left, **right‑click** on `Servers` → **Create** → **Server...`.
+3. In the **General** tab:
+   - **Name**: `Portable Postgres` (or any name you like)
+4. In the **Connection** tab:
+   - **Host name/address**: `localhost`
+   - **Port**: `5432` (or whatever you configured in the app settings)
+   - **Maintenance database**: `postgres`
+   - **Username**: `postgres`
+   - **Password**: `postgres`
+   - Optionally check **Save password?**
+5. Click **Save**. The server should now appear under `Servers` and connect.
 
 ## Development
 
