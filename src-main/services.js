@@ -507,18 +507,18 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
         const venvPython = path.join(venvDir, 'Scripts', 'python.exe');
         if (await fs.pathExists(venvPython)) {
             // Before using the venv, fix pyvenv.cfg if it still points to a CI/home path (e.g. D:\a\...).
-            // When the venv is created on CI and then moved into C:\Softwares\..., the "home" entry in
-            // pyvenv.cfg still references the original base Python, which causes errors like:
-            //   No Python at "D:\a\portable-postgis-app\portable-postgis-app\bin\win\python\python.exe"
+            // Important: pyvenv.cfg "home" must point to the *directory* of the base Python, not the exe.
+            // Otherwise Python internally appends "python.exe" again, giving paths like ...\python.exe\python.exe.
             const venvCfg = path.join(venvDir, 'pyvenv.cfg');
             const bundledBasePython = PATHS.PYTHON_BIN; // e.g. ...\bin\win\python\python.exe
+            const bundledBaseDir = path.dirname(bundledBasePython); // ...\bin\win\python
 
             try {
                 if (await fs.pathExists(venvCfg) && await fs.pathExists(bundledBasePython)) {
                     let cfgText = await fs.readFile(venvCfg, 'utf8');
 
                     const homeLineRegex = /^home\s*=\s*.*$/m;
-                    const newHomeLine = `home = ${bundledBasePython.replace(/\\/g, '\\\\')}`;
+                    const newHomeLine = `home = ${bundledBaseDir}`;
 
                     if (homeLineRegex.test(cfgText)) {
                         cfgText = cfgText.replace(homeLineRegex, newHomeLine);
@@ -527,7 +527,7 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
                     }
 
                     await fs.writeFile(venvCfg, cfgText, 'utf8');
-                    onLog(`[pgadmin] Patched pyvenv.cfg home to ${bundledBasePython}`);
+                    onLog(`[pgadmin] Patched pyvenv.cfg home to ${bundledBaseDir}`);
                 }
             } catch (e) {
                 onLog(`[pgadmin] Warning: Failed to patch pyvenv.cfg: ${e.message}`);
