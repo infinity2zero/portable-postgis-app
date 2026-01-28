@@ -350,8 +350,28 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
     const dbPort = pgPort || PORTS.POSTGRES;
     const adminPort = pgAdminPort || PORTS.PGADMIN;
 
-    if (!await fs.pathExists(PATHS.PYTHON_BIN)) {
-        onLog(`[pgadmin] Python not found at ${PATHS.PYTHON_BIN}.`);
+    // Determine which Python to use for pgAdmin.
+    // On Windows we prefer the pgadmin-venv created by setup-resources.js,
+    // so pyvenv.cfg is present and pgAdmin runs in a proper venv.
+    let pythonBin = PATHS.PYTHON_BIN;
+    let pythonBaseDir = path.dirname(PATHS.PYTHON_BIN);
+
+    if (config.IS_WIN) {
+        const venvDir = path.join(pythonBaseDir, 'pgadmin-venv');
+        const venvPython = path.join(venvDir, 'Scripts', 'python.exe');
+        if (await fs.pathExists(venvPython)) {
+            onLog(`[pgadmin] Using venv Python at ${venvPython}`);
+            pythonBin = venvPython;
+            pythonBaseDir = venvDir;
+        } else {
+            onLog(
+                `[pgadmin] pgadmin-venv Python not found at ${venvPython}. Falling back to base Python ${PATHS.PYTHON_BIN}`
+            );
+        }
+    }
+
+    if (!await fs.pathExists(pythonBin)) {
+        onLog(`[pgadmin] Python not found at ${pythonBin}.`);
         return;
     }
 
@@ -361,11 +381,11 @@ async function startPgAdmin(onLog, pgPort, pgAdminPort) {
 
     // Strategy: Search for pgAdmin4.py in site-packages
     // Note: Windows path separator handling is critical here.
-    // Standard Python layout on Windows: python.exe is in root, Lib is in root.
-    // So if python is at bin/win/python/python.exe, Lib is at bin/win/python/Lib.
+    // For Windows venv: venvRoot/Lib/site-packages
+    // For portable mac: pythonRoot/../lib/python3.10/site-packages
     const sitePackages = config.IS_WIN
-        ? path.join(path.dirname(config.PATHS.PYTHON_BIN), 'Lib', 'site-packages')
-        : path.join(path.dirname(config.PATHS.PYTHON_BIN), '..', 'lib', 'python3.10', 'site-packages');
+        ? path.join(pythonBaseDir, 'Lib', 'site-packages')
+        : path.join(path.dirname(PATHS.PYTHON_BIN), '..', 'lib', 'python3.10', 'site-packages');
 
     // Fallback search
     let pgAdminPy = path.join(sitePackages, 'pgadmin4', 'pgAdmin4.py');
@@ -512,7 +532,8 @@ DEFAULT_SERVER_PORT = int(os.environ.get('PGADMIN_PORT', 5050))
         const { spawn } = require('child_process');
         
         await new Promise((resolve, reject) => {
-            const loadProc = spawn(PATHS.PYTHON_BIN, [setupPy, 'load-servers', serversJsonPath, '--replace'], { env });
+            onLog(`[pgadmin] Running setup.py load-servers with Python: ${pythonBin}`);
+            const loadProc = spawn(pythonBin, [setupPy, 'load-servers', serversJsonPath, '--replace'], { env });
             loadProc.stdout.on('data', d => onLog(`[pgadmin-setup] ${d}`));
             loadProc.stderr.on('data', d => onLog(`[pgadmin-setup] ${d}`));
             loadProc.on('close', code => {
@@ -528,7 +549,9 @@ DEFAULT_SERVER_PORT = int(os.environ.get('PGADMIN_PORT', 5050))
     // }
 
     // Command: python -u path/to/pgAdmin4.py
-    processManager.start('pgadmin', PATHS.PYTHON_BIN, ['-u', pgAdminPy], { env }, onLog);
+    onLog(`[pgadmin] Starting pgAdmin using Python: ${pythonBin}`);
+    onLog(`[pgadmin] pgAdmin entrypoint: ${pgAdminPy}`);
+    processManager.start('pgadmin', pythonBin, ['-u', pgAdminPy], { env }, onLog);
 }
 
 function stopPostgres() {
