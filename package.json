@@ -1,6 +1,6 @@
 {
     "name": "portable-postgis-app",
-    "version": "1.0.19",
+    "version": "1.0.20",
     "description": "Portable App bundling PostgreSQL, PostGIS, and pgAdmin",
     "keywords": [
         "portable",

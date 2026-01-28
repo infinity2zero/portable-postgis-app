@@ -212,15 +212,15 @@ async function installPostgres(targetOS) {
 
     // Install PostGIS for Windows (Check if installed separately)
     if (postgresInstalled && (process.platform === 'win32' || targetOS === 'win')) {
-        // Check both possible PostGIS locations
+        // Check both possible PostGIS locations inside the postgres tree
         const postgisControlPath1 = path.join(extractPath, 'share', 'extension', 'postgis.control');
         const postgisControlPath2 = path.join(extractPath, 'share', 'postgresql', 'extension', 'postgis.control');
         
         const postgisInstalled = await fs.pathExists(postgisControlPath1) || await fs.pathExists(postgisControlPath2);
         
         if (!postgisInstalled) {
-            console.log(`[${targetOS}] PostGIS not found. Installing PostGIS extensions...`);
-            console.log(`[${targetOS}] Checking locations:`);
+            console.log(`[${targetOS}] PostGIS not found in postgres tree. Installing PostGIS extensions...`);
+            console.log(`[${targetOS}] Expected locations:`);
             console.log(`[${targetOS}]   - ${postgisControlPath1}`);
             console.log(`[${targetOS}]   - ${postgisControlPath2}`);
             
@@ -232,18 +232,74 @@ async function installPostgres(targetOS) {
                 await downloadFile(postgisUrl, postgisDownloadPath);
                 console.log(`[${targetOS}] PostGIS bundle downloaded: ${postgisFilename}`);
 
-                console.log(`[${targetOS}] Extracting PostGIS into ${extractPath}...`);
+                // Extract PostGIS to a temporary folder, then merge its bin/lib/share into our postgres tree.
+                const tempPostgisDir = path.join(binRoot, 'postgis-temp');
+                await fs.remove(tempPostgisDir);
+                await fs.ensureDir(tempPostgisDir);
+
+                console.log(`[${targetOS}] Extracting PostGIS into temporary folder ${tempPostgisDir}...`);
                 const postgisZip = new AdmZip(postgisDownloadPath);
                 
                 // List contents before extraction for debugging
                 const zipEntries = postgisZip.getEntries();
                 console.log(`[${targetOS}] PostGIS zip contains ${zipEntries.length} entries`);
                 
-                // Extract directly into postgres folder to merge bin/share/lib
-                postgisZip.extractAllTo(extractPath, true);
-                console.log(`[${targetOS}] PostGIS extracted.`);
+                postgisZip.extractAllTo(tempPostgisDir, true);
+                console.log(`[${targetOS}] PostGIS extracted to temp folder.`);
 
-                // Verify PostGIS files were extracted correctly
+                // Many PostGIS bundles have a top-level "postgis-bundle-..." folder.
+                // Detect the actual bundle root that contains share/extension/postgis.control.
+                const candidateRoots = [tempPostgisDir];
+                try {
+                    const children = await fs.readdir(tempPostgisDir, { withFileTypes: true });
+                    for (const entry of children) {
+                        if (entry.isDirectory()) {
+                            candidateRoots.push(path.join(tempPostgisDir, entry.name));
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`[${targetOS}] Failed to list children of temp PostGIS dir: ${e.message}`);
+                }
+
+                let bundleRoot = null;
+                for (const root of candidateRoots) {
+                    const c1 = path.join(root, 'share', 'extension', 'postgis.control');
+                    const c2 = path.join(root, 'share', 'postgresql', 'extension', 'postgis.control');
+                    if (await fs.pathExists(c1) || await fs.pathExists(c2)) {
+                        bundleRoot = root;
+                        break;
+                    }
+                }
+
+                if (!bundleRoot) {
+                    console.warn(`[${targetOS}] ⚠️  Could not locate PostGIS share/extension directory inside bundle.`);
+                    console.warn(`[${targetOS}] Temp folder contents will be listed for debugging.`);
+                    try {
+                        const tempContents = await fs.readdir(tempPostgisDir);
+                        console.log(`[${targetOS}] postgis-temp contents: ${tempContents.join(', ')}`);
+                    } catch (e) {
+                        console.warn(`[${targetOS}] Failed to list postgis-temp contents: ${e.message}`);
+                    }
+                } else {
+                    console.log(`[${targetOS}] Found PostGIS bundle root at ${bundleRoot}. Merging into postgres tree...`);
+                    // Merge key directories from bundleRoot into our postgres extractPath
+                    const dirsToMerge = ['bin', 'lib', 'share', 'include'];
+                    for (const dirName of dirsToMerge) {
+                        const srcDir = path.join(bundleRoot, dirName);
+                        if (await fs.pathExists(srcDir)) {
+                            const destDir = path.join(extractPath, dirName);
+                            console.log(`[${targetOS}] Merging ${srcDir} -> ${destDir}`);
+                            await fs.ensureDir(destDir);
+                            await fs.copy(srcDir, destDir, { overwrite: true });
+                        }
+                    }
+                }
+
+                // Clean up temp bundle and archive
+                await fs.remove(tempPostgisDir);
+                await fs.remove(postgisDownloadPath);
+
+                // Verify PostGIS files were merged correctly
                 const verifyPath1 = path.join(extractPath, 'share', 'extension', 'postgis.control');
                 const verifyPath2 = path.join(extractPath, 'share', 'postgresql', 'extension', 'postgis.control');
                 
@@ -252,7 +308,7 @@ async function installPostgres(targetOS) {
                 } else if (await fs.pathExists(verifyPath2)) {
                     console.log(`[${targetOS}] ✅ PostGIS verified at: ${verifyPath2}`);
                 } else {
-                    // List what actually exists in share directories
+                    // List what actually exists in share directories for debugging
                     const shareDir = path.join(extractPath, 'share');
                     if (await fs.pathExists(shareDir)) {
                         try {
@@ -275,11 +331,10 @@ async function installPostgres(targetOS) {
                             console.warn(`[${targetOS}] Could not list share directory: ${e.message}`);
                         }
                     }
-                    console.warn(`[${targetOS}] ⚠️  PostGIS control file not found after extraction. PostGIS may not work correctly.`);
+                    console.warn(`[${targetOS}] ⚠️  PostGIS control file not found after merge. PostGIS may not work correctly.`);
                 }
 
-                await fs.remove(postgisDownloadPath);
-                console.log(`[${targetOS}] PostGIS installation complete.`);
+                console.log(`[${targetOS}] PostGIS installation/merge complete.`);
             } catch (e) {
                 // Non-fatal: log and continue so Python can still be installed
                 console.error(`[${targetOS}] ❌ Failed to download/install PostGIS from ${postgisUrl}: ${e.message}`);
@@ -489,9 +544,9 @@ async function installPgAdmin(targetOS) {
         await execPromise(`"${effectivePython}" -m pip install --upgrade pip`);
         console.log(`[${targetOS}] Pip upgraded.`);
 
-        console.log(`[${targetOS}] Installing pgAdmin4==8.4 using ${effectivePython}...`);
+        console.log(`[${targetOS}] Installing pgAdmin4 using ${effectivePython}...`);
         // Install specific version of pgadmin4 to avoid known registry issues in some newer builds
-        await execPromise(`"${effectivePython}" -m pip install pgadmin4==8.4`);
+        await execPromise(`"${effectivePython}" -m pip install pgadmin4`);
         console.log(`[${targetOS}] pgAdmin4 installed successfully.`);
     } catch (e) {
         console.error(`[${targetOS}] Failed to install pgAdmin:`, e);
