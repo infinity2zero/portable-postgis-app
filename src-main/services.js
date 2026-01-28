@@ -136,15 +136,19 @@ async function startPostgres(onLog, port) {
     }
 
     // 3. Start Server with proper environment variables
-    // Set PostgreSQL environment variables so it can find extensions and libraries
+    // Set PostgreSQL environment variables so it can find extensions and libraries.
+    // As above, prefer .../share/postgresql if present, otherwise fall back to .../share.
     const postgresBinDir = path.dirname(PATHS.POSTGRES_BIN);
     const postgresRootDir = path.dirname(postgresBinDir);
-    const postgresShareDir = path.join(postgresRootDir, 'share');
+    let baseShareRoot = path.join(postgresRootDir, 'share', 'postgresql');
+    if (!await fs.pathExists(baseShareRoot)) {
+        baseShareRoot = path.join(postgresRootDir, 'share');
+    }
     const postgresLibDir = path.join(postgresRootDir, 'lib');
     
     const postgresEnv = {
         ...process.env,
-        PGSHARE: postgresShareDir,
+        PGSHARE: baseShareRoot,
         PGLIB: postgresLibDir,
         // On Windows, also set PATH to include PostgreSQL bin directory
         PATH: process.platform === 'win32' 
@@ -203,20 +207,27 @@ async function ensureDatabaseFixed(port, binPath, onLog) {
         psqlBin += '.exe';
     }
 
-    // Set PostgreSQL environment variables so it can find extensions
-    // PGSHARE points to the share directory where extensions are located
-    const postgresShareDir = path.join(path.dirname(path.dirname(binPath)), 'share');
-    const postgresLibDir = path.join(path.dirname(path.dirname(binPath)), 'lib');
-    
-    // Try both possible locations for share directory
-    let sharePath = path.join(postgresShareDir, 'extension');
-    if (!await fs.pathExists(sharePath)) {
-        sharePath = path.join(postgresShareDir, 'postgresql', 'extension');
+    // Set PostgreSQL environment variables so it can find extensions.
+    // On Windows distributions, extensions may live under either:
+    //   .../postgres/share/extension
+    //   .../postgres/share/postgresql/extension
+    // We prefer the 'share/postgresql' layout if it exists and point PGSHARE there,
+    // so the server looks in the correct place for control files.
+    const postgresRootDir = path.dirname(path.dirname(binPath)); // .../postgres
+    const postgresLibDir = path.join(postgresRootDir, 'lib');
+
+    // Determine the base share root that actually exists
+    let baseShareRoot = path.join(postgresRootDir, 'share', 'postgresql');
+    if (!await fs.pathExists(baseShareRoot)) {
+        baseShareRoot = path.join(postgresRootDir, 'share');
     }
+
+    // Extension directory under the chosen share root
+    let sharePath = path.join(baseShareRoot, 'extension');
     
     const env = {
         ...process.env,
-        PGSHARE: postgresShareDir,
+        PGSHARE: baseShareRoot,
         PGLIB: postgresLibDir
     };
 
@@ -294,7 +305,7 @@ async function ensureDatabaseFixed(port, binPath, onLog) {
     const postgisControl = path.join(sharePath, 'postgis.control');
     if (!await fs.pathExists(postgisControl)) {
         onLog(`[postgres] Warning: PostGIS extension not found at ${postgisControl}. Skipping extension enable.`);
-        onLog(`[postgres] Share directory: ${postgresShareDir}`);
+        onLog(`[postgres] Share root: ${baseShareRoot}`);
         onLog(`[postgres] Extension directory: ${sharePath}`);
         return;
     }

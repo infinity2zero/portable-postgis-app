@@ -1,3 +1,6 @@
+## Currently windows build isn't working , I am working on it.
+
+
 # Portable PostGIS App
 
 ![Portable PostGIS Demo](src/assets/portablepostgres-rec.gif)
