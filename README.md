@@ -5,7 +5,7 @@
 A self-contained, portable application bundling PostgreSQL, PostGIS, and pgAdmin 4. This application allows you to run a spatial database environment without any complex installation or system-level dependencies.
 
 ## Default Connection Details
-
+  
 Use these details to connect to the database programmatically or via external tools:
 
 | Parameter | Value |
