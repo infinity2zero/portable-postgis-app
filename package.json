@@ -1,6 +1,6 @@
 {
     "name": "portable-postgis-app",
-    "version": "1.0.22",
+    "version": "1.0.23",
     "description": "Portable App bundling PostgreSQL, PostGIS, and pgAdmin",
     "keywords": [
         "portable",
@@ -42,7 +42,15 @@
                     "!**/*.pyo",
                     "!**/doc/**",
                     "!**/share/doc/**",
-                    "!**/share/man/**"
+                    "!**/share/man/**",
+                    "!**/symbols/**",
+                    "!**/*.pdb",
+                    "!**/StackBuilder/**",
+                    "!**/include/**",
+                    "!**/share/locale/**",
+                    "!**/postgis-bundle-*/**",
+                    "!**/pgAdmin 4/**",
+                    "!**/libs/**"
                 ]
             },
             "data"

@@ -344,6 +344,28 @@ async function installPostgres(targetOS) {
             const foundPath = await fs.pathExists(postgisControlPath1) ? postgisControlPath1 : postgisControlPath2;
             console.log(`[${targetOS}] ✅ PostGIS already installed at: ${foundPath}`);
         }
+
+        // Remove redundant dirs from postgres tree to reduce bundle size (Windows)
+        const dirsToRemove = ['symbols', 'StackBuilder', 'include', 'doc', 'pgAdmin 4'];
+        for (const dirName of dirsToRemove) {
+            const fullPath = path.join(extractPath, dirName);
+            if (await fs.pathExists(fullPath)) {
+                await fs.remove(fullPath);
+                console.log(`[${targetOS}] Removed ${dirName}/ from postgres (not needed at runtime).`);
+            }
+        }
+        // Remove any leftover postgis-bundle-* folder (from old extraction layout)
+        try {
+            const entries = await fs.readdir(extractPath);
+            for (const name of entries) {
+                if (name.toLowerCase().startsWith('postgis-bundle-')) {
+                    await fs.remove(path.join(extractPath, name));
+                    console.log(`[${targetOS}] Removed ${name}/ from postgres (merged content only kept).`);
+                }
+            }
+        } catch (e) {
+            console.warn(`[${targetOS}] Could not clean postgis-bundle dirs: ${e.message}`);
+        }
     }
 }
 
@@ -545,8 +567,9 @@ async function installPgAdmin(targetOS) {
         console.log(`[${targetOS}] Pip upgraded.`);
 
         console.log(`[${targetOS}] Installing pgAdmin4 using ${effectivePython}...`);
-        // Install specific version of pgadmin4 to avoid known registry issues in some newer builds
-        await execPromise(`"${effectivePython}" -m pip install pgadmin4`);
+        // Install specific version of pgadmin4 to avoid known registry issues in some newer builds.
+        // --no-cache-dir avoids storing pip wheel cache inside the venv, reducing bundle size.
+        await execPromise(`"${effectivePython}" -m pip install --no-cache-dir pgadmin4`);
         console.log(`[${targetOS}] pgAdmin4 installed successfully.`);
     } catch (e) {
         console.error(`[${targetOS}] Failed to install pgAdmin:`, e);
