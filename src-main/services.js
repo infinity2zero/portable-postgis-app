@@ -18,7 +18,7 @@ async function startPostgres(onLog, port) {
     const dataDir = path.join(PATHS.DATA, 'postgres');
     await fs.ensureDir(dataDir);
 
-    // Fix permissions (Important for Mac/Linux)
+    // Fix permissions (Important for Mac)
     if (process.platform !== 'win32') {
         try {
             await fs.chmod(dataDir, 0o700);

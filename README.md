@@ -21,7 +21,7 @@ Use these details to connect to the database programmatically or via external to
 - **Portable PostgreSQL**: Runs a local instance of PostgreSQL with PostGIS extensions pre-installed.
 - **Built-in database browser**: Query editor, schema explorer, ER diagram, and table import/export wizards (no pgAdmin required).
 - **Zero Installation**: No system services or registry changes required.
-- **Cross-Platform**: Windows, macOS, and Linux (Unix).
+- **Cross-Platform**: Windows and macOS.
 - **User-Friendly Dashboard**: Manage services, ports, and extensions from a simple UI.
 
 ## Getting Started
@@ -32,7 +32,6 @@ Download the latest version for your operating system from the [Releases Page](h
 
 - **Windows**: `.exe` installer or portable zip
 - **macOS**: `.dmg` or `.zip`
-- **Linux**: AppImage or archive (see [Building for Linux](#building-for-linux))
 
 ### Installation
 
@@ -41,7 +40,6 @@ Download the latest version for your operating system from the [Releases Page](h
 3. Run the application:
    - **Windows**: `Portable PostGIS.exe`
    - **macOS**: `Portable PostGIS.app`
-   - **Linux**: Run the AppImage or extracted executable.
 
 ### macOS Troubleshooting ("App is damaged")
 
@@ -133,20 +131,6 @@ npm run build:mac
 ```
 
 Generates `.dmg` and `.zip` in `dist/`.
-
-### Building for Linux
-
-To build for Linux (AppImage or other formats):
-
-1. Build the Angular renderer: `npm run build:renderer`
-2. Ensure `bin/linux/` exists (CI creates a placeholder; for full functionality you may need to add PostgreSQL/Python binaries for Linux).
-3. Run:
-
-```bash
-electron-builder --linux
-```
-
-Outputs will be in `dist/` (e.g. AppImage). Linux builds are also produced by [GitHub Actions](.github/workflows/build.yml) on push/tag.
 
 ### Configuration
 

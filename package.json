@@ -1,6 +1,6 @@
 {
     "name": "portable-postgis-app",
-    "version": "1.0.23",
+    "version": "2.0.4",
     "description": "Portable App bundling PostgreSQL and PostGIS with a built-in database browser",
     "keywords": [
         "portable",
@@ -64,13 +64,6 @@
                 "dmg",
                 "zip"
             ]
-        },
-        "linux": {
-            "target": [
-                "AppImage",
-                "zip"
-            ],
-            "category": "Development"
         },
         "win": {
             "target": [
