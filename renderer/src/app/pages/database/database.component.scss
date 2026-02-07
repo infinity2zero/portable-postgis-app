@@ -1219,6 +1219,16 @@
   background: var(--color-surface);
 }
 
+.query-toolbar-db {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  padding: var(--space-2) var(--space-8);
+  background: var(--color-background);
+  border-radius: var(--radius-sm);
+  margin-right: var(--space-8);
+}
+
 .query-editor-wrap {
   flex-shrink: 0;
   flex-grow: 0;

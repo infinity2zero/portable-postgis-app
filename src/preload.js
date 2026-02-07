@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('api', {
     dbListSchemas: (database) => ipcRenderer.invoke('db:listSchemas', database),
     dbListTables: (database, schema) => ipcRenderer.invoke('db:listTables', database, schema),
     dbListViews: (database, schema) => ipcRenderer.invoke('db:listViews', database, schema),
+    dbListAllTablesAndViews: (database) => ipcRenderer.invoke('db:listAllTablesAndViews', database),
     dbListFunctions: (database, schema) => ipcRenderer.invoke('db:listFunctions', database, schema),
     dbListSequences: (database, schema) => ipcRenderer.invoke('db:listSequences', database, schema),
     dbListColumns: (database, schema, table) => ipcRenderer.invoke('db:listColumns', database, schema, table),

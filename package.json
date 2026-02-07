@@ -1,6 +1,6 @@
 {
     "name": "portable-postgis-app",
-    "version": "2.0.5",
+    "version": "2.0.6",
     "description": "Portable App bundling PostgreSQL and PostGIS with a built-in database browser",
     "keywords": [
         "portable",

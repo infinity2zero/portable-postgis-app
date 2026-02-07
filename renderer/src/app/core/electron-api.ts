@@ -43,6 +43,7 @@ export interface ElectronApi {
   dbListSchemas?: (database: string) => Promise<{ rows?: string[]; error?: string }>;
   dbListTables?: (database: string, schema: string) => Promise<{ rows?: string[]; error?: string }>;
   dbListViews?: (database: string, schema: string) => Promise<{ rows?: string[]; error?: string }>;
+  dbListAllTablesAndViews?: (database: string) => Promise<{ rows?: { schema_name: string; table_name: string; table_type: string }[]; error?: string }>;
   dbListFunctions?: (database: string, schema: string) => Promise<{ rows?: string[]; error?: string }>;
   dbListSequences?: (database: string, schema: string) => Promise<{ rows?: string[]; error?: string }>;
   dbListColumns?: (database: string, schema: string, table: string) => Promise<{ rows?: { column_name: string; data_type: string; is_primary_key?: boolean }[]; error?: string }>;

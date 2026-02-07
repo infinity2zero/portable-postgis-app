@@ -174,6 +174,8 @@ export class DatabaseComponent implements OnInit, OnDestroy {
   /** ID of the currently active tab */
   activeTabId = 'overview';
   schemas: SchemaNode[] = [];
+  /** All tables/views for current DB (exact casing) for IntelliSense; loaded with schemas. */
+  completionTablesAndViews: { schema_name: string; table_name: string; table_type: string }[] = [];
   /** Resizable explorer sidebar width (px). */
   sidebarWidth = SIDEBAR_DEFAULT;
   /** Dragging the splitter */
@@ -352,8 +354,10 @@ export class DatabaseComponent implements OnInit, OnDestroy {
 
   /** Multi-database: list from server */
   databasesList: string[] = [];
-  /** Currently selected database (drives tree and query) */
+  /** Currently selected database (drives tree and extensions) */
   selectedDatabase: string | null = null;
+  /** Database for the currently active query tab (set when switching to a query tab; used for Run/Explain so execution always uses the right DB) */
+  activeQueryTabDatabase: string | null = null;
   /** Panel 1: "Portable Postgres" connection expanded to show DB list */
   connectionExpanded = true;
   /** Panel 1/2/3 collapse state */
@@ -493,6 +497,13 @@ export class DatabaseComponent implements OnInit, OnDestroy {
 
   private sqlCompletionDisposable: { dispose: () => void } | null = null;
 
+  /** Quote PostgreSQL identifier if it has mixed case or special chars so it works in SQL. */
+  private quoteSqlIdentifier(name: string): string {
+    if (!name) return '""';
+    const needsQuotes = /[A-Z]/.test(name) || !/^[a-z_][a-z0-9_]*$/.test(name);
+    return needsQuotes ? `"${String(name).replace(/"/g, '""')}"` : name;
+  }
+
   private registerSqlCompletionProvider(): void {
     const monaco = (typeof window !== 'undefined' ? (window as unknown as { monaco?: unknown }) : undefined)?.monaco;
     if (!monaco || typeof (monaco as { languages?: { registerCompletionItemProvider?: (lang: string, provider: unknown) => { dispose: () => void } } }).languages?.registerCompletionItemProvider !== 'function') return;
@@ -519,12 +530,16 @@ export class DatabaseComponent implements OnInit, OnDestroy {
           detail: 'Keyword',
         }));
         this.schemas.forEach((s) => {
-          suggestions.push({ label: s.name, kind: 9, insertText: s.name, detail: 'Schema' });
-          (s.tables || []).forEach((t) => {
-            suggestions.push({ label: `${s.name}.${t}`, kind: 5, insertText: `${s.name}.${t}`, detail: 'Table' });
-          });
-          (s.views || []).forEach((v) => {
-            suggestions.push({ label: `${s.name}.${v}`, kind: 5, insertText: `${s.name}.${v}`, detail: 'View' });
+          suggestions.push({ label: s.name, kind: 9, insertText: this.quoteSqlIdentifier(s.name), detail: 'Schema' });
+        });
+        this.completionTablesAndViews.forEach((row) => {
+          const schemaQuoted = this.quoteSqlIdentifier(row.schema_name);
+          const nameQuoted = this.quoteSqlIdentifier(row.table_name);
+          suggestions.push({
+            label: `${row.schema_name}.${row.table_name}`,
+            kind: 5,
+            insertText: `${schemaQuoted}.${nameQuoted}`,
+            detail: row.table_type === 'VIEW' ? 'View' : 'Table',
           });
         });
         return { suggestions };
@@ -690,6 +705,7 @@ export class DatabaseComponent implements OnInit, OnDestroy {
       if (!db) this.treeError = '';
       else if (!api?.dbListSchemas) this.treeError = 'Database browser not available.';
       this.schemas = [];
+      this.completionTablesAndViews = [];
       return;
     }
     this.treeError = '';
@@ -699,6 +715,7 @@ export class DatabaseComponent implements OnInit, OnDestroy {
       if (res.error) {
         this.treeError = res.error;
         this.schemas = [];
+        this.completionTablesAndViews = [];
         return;
       }
       this.schemas = (res.rows || []).map((name: string) => ({
@@ -714,12 +731,32 @@ export class DatabaseComponent implements OnInit, OnDestroy {
         sequencesSectionExpanded: true,
         functionsSectionExpanded: true,
       }));
+      this.loadCompletionTablesAndViews();
     });
   }
 
-  /** Select database and reload tree + panel 3 extensions */
+  /** Load all tables/views for current DB (exact casing) for query editor IntelliSense. */
+  private loadCompletionTablesAndViews(): void {
+    const db = this.selectedDatabase;
+    const api = this.api?.dbListAllTablesAndViews;
+    if (!db || !api) {
+      this.completionTablesAndViews = [];
+      return;
+    }
+    api(db).then((res) => {
+      this.completionTablesAndViews = (res.rows || []) as { schema_name: string; table_name: string; table_type: string }[];
+    }).catch(() => {
+      this.completionTablesAndViews = [];
+    });
+  }
+
+  /** Select database and reload tree + panel 3 extensions. If the active tab is a query tab for the previous DB, close it and replace with a query tab for the new DB. */
   selectDatabase(db: string): void {
     if (this.selectedDatabase === db) return;
+    const prevDb = this.selectedDatabase;
+    const activeTab = this.getTabById(this.activeTabId);
+    const wasQueryTabForPrevDb = activeTab?.type === 'query' && activeTab.database === prevDb;
+
     this.selectedDatabase = db;
     this.expandedTableKeys = {};
     this.tableColumnsMap = {};
@@ -740,6 +777,17 @@ export class DatabaseComponent implements OnInit, OnDestroy {
     this.loadSchemas();
     this.loadExtensionsForSelectedDb();
     if (this.activeTabId === 'overview') this.loadOverviewStats();
+
+    // When switching DB: if query tool was open for the previous DB, close it and show query tool for the new DB
+    if (wasQueryTabForPrevDb && this.activeTabId) {
+      this.closeTab(this.activeTabId);
+      const existingQueryForNewDb = this.openTabs.find((t) => t.type === 'query' && t.database === db);
+      if (existingQueryForNewDb) {
+        this.selectTab(existingQueryForNewDb.id);
+      } else {
+        this.openNewQueryTab(db);
+      }
+    }
   }
 
   loadRolesAndTablespaces(): void {
@@ -1066,11 +1114,9 @@ export class DatabaseComponent implements OnInit, OnDestroy {
     return this.getTabById(this.activeTabId)?.type === 'query';
   }
 
-  /** Database for the active query tab (for Run/Explain) */
+  /** Database for Run/Explain and toolbar label. When on query tab use that tab's DB, else tree selection. */
   get activeQueryDatabase(): string {
-    const tab = this.getTabById(this.activeTabId);
-    if (tab?.type === 'query' && tab.database) return tab.database;
-    return this.selectedDatabase ?? 'postgres';
+    return this.getQueryRunDatabase();
   }
 
   /** True if the active tab is a table/view tab */
@@ -1115,27 +1161,36 @@ export class DatabaseComponent implements OnInit, OnDestroy {
 
   /** Switch to a tab by id; for table tabs loads that table's data; for ER tab loads diagram; for query tab loads its state */
   selectTab(id: string): void {
+    const tab = this.getTabById(id);
+    if (!tab) return;
+
     const prevId = this.activeTabId;
     const prevTab = this.getTabById(prevId);
     if (prevTab?.type === 'query') this.saveQueryTabState(prevId);
 
     this.activeTabId = id;
-    const tab = this.getTabById(id);
-    if (tab?.type === 'query') {
+    if (tab.type === 'query') {
+      // Same context as table tab: sync selectedDatabase from tab so Run and IntelliSense use it (like loadTableRows uses selectedDatabase).
+      const tabDb = tab.database ?? (tab.id.startsWith('query:') ? tab.id.split(':')[1] : null) ?? this.selectedDatabase ?? 'postgres';
+      this.selectedDatabase = tabDb;
+      this.loadSchemas();
+      this.loadExtensionsForSelectedDb();
       this.loadQueryTabState(id);
       this.layoutQueryEditor();
-    } else if (tab?.type === 'table' && tab.schema && tab.table) {
-      if (tab.database) this.selectedDatabase = tab.database;
-      this.selectedSchema = tab.schema;
-      this.selectedTable = tab.table;
-      this.tableError = '';
-      this.tablePage = 0;
-      this.ensureTableMetadataLoaded(tab.schema, tab.table);
-      this.loadTableRows();
-    } else if (tab?.type === 'er') {
-      this.loadErDiagram();
-    } else if (id === 'overview' && this.selectedDatabase) {
-      this.loadOverviewStats();
+    } else {
+      if (tab.type === 'table' && tab.schema && tab.table) {
+        if (tab.database) this.selectedDatabase = tab.database;
+        this.selectedSchema = tab.schema;
+        this.selectedTable = tab.table;
+        this.tableError = '';
+        this.tablePage = 0;
+        this.ensureTableMetadataLoaded(tab.schema, tab.table);
+        this.loadTableRows();
+      } else if (tab?.type === 'er') {
+        this.loadErDiagram();
+      } else if (id === 'overview' && this.selectedDatabase) {
+        this.loadOverviewStats();
+      }
     }
   }
 
@@ -1465,9 +1520,19 @@ export class DatabaseComponent implements OnInit, OnDestroy {
     return this.querySql.trim();
   }
 
+  /** Database to use for Run/Explain: when on a query tab use that tab's DB (same as table tab context), else tree selection. */
+  private getQueryRunDatabase(): string {
+    const tab = this.getTabById(this.activeTabId);
+    if (tab?.type === 'query') {
+      const tabDb = tab.database ?? (tab.id.startsWith('query:') ? tab.id.split(':')[1] : null);
+      if (tabDb) return tabDb;
+    }
+    return this.selectedDatabase ?? 'postgres';
+  }
+
   runQuery(): void {
     const api = this.api;
-    const db = this.activeQueryDatabase;
+    const db = this.getQueryRunDatabase();
     if (!api?.dbRunScript || !db) return;
     const sql = this.getSqlToRun();
     if (!sql) return;
@@ -1489,7 +1554,7 @@ export class DatabaseComponent implements OnInit, OnDestroy {
 
   runExplain(): void {
     const api = this.api;
-    const db = this.activeQueryDatabase;
+    const db = this.getQueryRunDatabase();
     if (!api?.dbRunExplain || !db) return;
     const sql = this.getSqlToRun();
     if (!sql) return;
@@ -1750,10 +1815,18 @@ export class DatabaseComponent implements OnInit, OnDestroy {
   explorerSelectInQuery(): void {
     const c = this.explorerContext;
     if (!c || ((c.type !== 'table' && c.type !== 'view') || !c.schema || !c.table)) return;
+    this.closeExplorerContextMenu();
+    const db = this.selectedDatabase ?? 'postgres';
+    let queryTab = this.openTabs.find((t) => t.type === 'query' && t.database === db);
+    if (!queryTab) {
+      this.openNewQueryTab(db);
+      queryTab = this.getTabById(this.activeTabId);
+    } else {
+      this.selectTab(queryTab.id);
+    }
     const quoted = (s: string) => (/^[a-z_][a-z0-9_]*$/i.test(s) ? s : `"${s.replace(/"/g, '""')}"`);
     this.querySql = `SELECT * FROM ${quoted(c.schema)}.${quoted(c.table)} LIMIT 100;`;
-    this.selectTab('query');
-    this.closeExplorerContextMenu();
+    if (this.activeTabId) this.saveQueryTabState(this.activeTabId);
   }
 
   explorerRefreshTable(): void {
@@ -2034,6 +2107,9 @@ export class DatabaseComponent implements OnInit, OnDestroy {
     const c = this.explorerContext;
     if (!c || c.type !== 'database' || !c.database) return;
     this.closeExplorerContextMenu();
+    this.selectedDatabase = c.database;
+    this.loadSchemas();
+    this.loadExtensionsForSelectedDb();
     this.openNewQueryTab(c.database);
   }
 

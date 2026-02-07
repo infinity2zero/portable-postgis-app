@@ -768,6 +768,7 @@
     @if (isQueryActive) {
       <div class="tab-content query-tab">
         <div class="query-toolbar">
+          <span class="query-toolbar-db" title="Queries run against this database. Use completion (Ctrl+Space) for tables; mixed-case names are inserted with quotes.">{{ activeQueryDatabase }}</span>
           <button type="button" class="btn-query btn-save-load" (click)="openNewQueryTab()" title="New query tab">+ New query</button>
           <button type="button" class="btn-query btn-run" (click)="runQuery()" [disabled]="queryRunning" title="Run query (Ctrl+Enter). Select text to run only that part.">{{ queryRunning ? 'Running…' : 'Run' }}</button>
           <button type="button" class="btn-query btn-explain" (click)="runExplain()" [disabled]="explainRunning" title="Explain plan (uses selection if any).">{{ explainRunning ? 'Explaining…' : 'Explain' }}</button>

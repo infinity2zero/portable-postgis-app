@@ -344,6 +344,16 @@ ipcMain.handle('db:listViews', async (event, database, schema) => {
         return { rows: r.rows.map(x => x.table_name) };
     });
 });
+// All tables and views in a database (for IntelliSense; preserves exact casing from information_schema)
+ipcMain.handle('db:listAllTablesAndViews', async (event, database) => {
+    const db = database && typeof database === 'string' ? database.trim() || 'postgres' : 'postgres';
+    return await withDb(db, async (client) => {
+        const r = await client.query(
+            `SELECT table_schema AS schema_name, table_name, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') AND table_type IN ('BASE TABLE', 'VIEW') ORDER BY table_schema, table_name`
+        );
+        return { rows: r.rows || [] };
+    });
+});
 ipcMain.handle('db:listFunctions', async (event, database, schema) => {
     const s = schema || 'public';
     return await withDb(database, async (client) => {
@@ -581,13 +591,33 @@ ipcMain.handle('db:runQuery', async (event, database, sql) => {
 // Run arbitrary SQL (single or multiple statements) - full query editor support
 ipcMain.handle('db:runScript', async (event, database, sql) => {
     if (!sql || typeof sql !== 'string') return { error: 'Invalid SQL' };
-    const db = database && typeof database === 'string' ? database : 'postgres';
+    const rawDb = database && typeof database === 'string' ? database : 'postgres';
+    const db = rawDb.trim() || 'postgres';
     const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
     if (statements.length === 0) return { error: 'No statement to run' };
     return await withDb(db, async (client) => {
         let lastResult = null;
-        for (const stmt of statements) {
-            lastResult = await client.query({ text: stmt + ';', rowMode: 'array' });
+        try {
+            for (const stmt of statements) {
+                lastResult = await client.query({ text: stmt + ';', rowMode: 'array' });
+            }
+        } catch (e) {
+            const msg = e.message || String(e);
+            let detail = e.detail ? '\nDetail: ' + e.detail : '';
+            try {
+                const r = await client.query('SELECT current_database()');
+                const currentDb = r.rows?.[0]?.current_database;
+                if (currentDb) detail += `\n(Connected to database: ${currentDb})`;
+                // On "relation does not exist", list tables in public schema so user can see exact names (case-sensitive)
+                if (/relation\s+["']?[\w.]*["']?\s+does not exist/i.test(msg)) {
+                    const list = await client.query(
+                        `SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') AND table_type = 'BASE TABLE' ORDER BY table_schema, table_name LIMIT 50`
+                    );
+                    const tables = (list.rows || []).map((row) => `${row.table_schema}.${row.table_name}`);
+                    if (tables.length > 0) detail += `\nTables in this database: ${tables.join(', ')}`;
+                }
+            } catch (_) {}
+            return { error: msg + detail };
         }
         if (!lastResult) return { rows: [], fields: [], rowCount: 0 };
         const fields = lastResult.fields?.map(f => f.name) || [];
@@ -602,8 +632,9 @@ ipcMain.handle('db:runExplain', async (event, database, sql) => {
     if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('WITH')) {
         return { error: 'EXPLAIN only supports SELECT (and read-only) queries' };
     }
+    const db = database && typeof database === 'string' ? database : 'postgres';
     const explainSql = 'EXPLAIN (FORMAT TEXT) ' + sql.trim();
-    return await withDb(database, async (client) => {
+    return await withDb(db, async (client) => {
         const r = await client.query(explainSql);
         const plan = r.rows.map((row) => row.query_plan || row.QUERY_PLAN || Object.values(row)[0]).filter(Boolean).join('\n');
         return { plan };

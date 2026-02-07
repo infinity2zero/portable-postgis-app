@@ -41,22 +41,20 @@ Download the latest version for your operating system from the [Releases Page](h
    - **Windows**: `Portable PostGIS.exe`
    - **macOS**: `Portable PostGIS.app`
 
-### macOS Troubleshooting ("App is damaged")
+### macOS – App says "is damaged and can't be opened"
 
-If you see an error saying **"Portable PostGIS.app is damaged and can't be opened. You should move it to the Trash"** when trying to launch on macOS, this is because the app is not code-signed with an Apple Developer Certificate.
+If macOS shows this message (the app is not code-signed), do the following:
 
-To fix this, you need to remove the quarantine attribute from the app. Open your **Terminal** and run the following command:
+1. Move the app to **Applications**.
+2. Open **Terminal**.
+3. Run:
 
-```bash
-xattr -cr /Applications/Portable\ PostGIS.app
-```
-*(Replace `/Applications/Portable\ PostGIS.app` with the actual path to where you placed the app)*
+   ```bash
+   xattr -cr /Applications/Portable\ PostGIS.app
+   ```
 
-Alternatively, if you haven't moved it to Applications yet and it's in your Downloads folder:
+4. Open the app normally.
 
-```bash
-xattr -cr ~/Downloads/Portable\ PostGIS.app
-```
 
 ### Usage
 
