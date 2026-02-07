@@ -38,7 +38,7 @@ jobs:
         if (Test-Path "bin/win/python/python.exe") { echo "Python found" } else { echo "Python MISSING"; exit 1 }
         
     - name: Build Electron App (Distributable)
-      run: electron-builder --win
+      run: npx electron-builder --win
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -84,7 +84,7 @@ jobs:
       run: node scripts/setup-resources.js --target=mac
       
     - name: Build Electron App
-      run: electron-builder --mac
+      run: npx electron-builder --mac
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -130,7 +130,7 @@ jobs:
       run: mkdir -p bin/linux
 
     - name: Build Electron App (Linux)
-      run: electron-builder --linux
+      run: npx electron-builder --linux
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
