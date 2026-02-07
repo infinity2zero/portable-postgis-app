@@ -32,6 +32,7 @@
         "appId": "com.example.portable-postgis",
         "productName": "Portable PostGIS",
         "icon": "assets/icon.png",
+        "publish": null,
         "extraResources": [
             {
                 "from": "bin/${os}",
