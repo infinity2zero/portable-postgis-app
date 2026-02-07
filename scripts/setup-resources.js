@@ -457,13 +457,13 @@ async function installPython(targetOS) {
             }
         }
         
-        // Sanity check: ensure Lib directory exists after flattening (important for pgAdmin)
+        // Sanity check: ensure Lib directory exists after flattening
         const libDir = path.join(extractPath, 'Lib');
         if (targetOS === 'win') {
             if (await fs.pathExists(libDir)) {
                 console.log(`[${targetOS}] Verified Python Lib directory at ${libDir}`);
             } else {
-                console.warn(`[${targetOS}] WARNING: Python Lib directory not found at ${libDir}. pgAdmin/venv may fail.`);
+                console.warn(`[${targetOS}] WARNING: Python Lib directory not found at ${libDir}.`);
             }
         }
     } else {
@@ -483,97 +483,9 @@ async function installPython(targetOS) {
     console.log(`[${targetOS}] Python installed.`);
 }
 
-async function installPgAdmin(targetOS) {
-    if (targetOS !== process.platform && process.platform === 'darwin' && targetOS !== 'mac') {
-        // Can't pip install windows while on mac easily
-        console.log(`[${targetOS}] Skipping pgAdmin install (must run on target OS).`);
-        return;
-    }
-    if (process.platform === 'win32' && targetOS !== 'win') {
-        return;
-    }
-
-    // Only install pgAdmin if we are ON the target OS (checked above roughly)
-    // Actually, "mac" on "darwin" is fine. "win" on "win32" is fine.
-
-    // Double check strictly
-    if (targetOS === 'mac' && process.platform !== 'darwin') return;
-    if (targetOS === 'win' && process.platform !== 'win32') {
-        console.log(`[${targetOS}] Skipping pgAdmin install for Windows (running on Mac). Run this script on Windows to finish setup.`);
-        return;
-    }
-
-    console.log(`[${targetOS}] Installing pgAdmin4 via pip...`);
-    const binRoot = path.join(__dirname, '..', 'bin', targetOS);
-
-    // Base Python coming from the portable distribution
-    const basePython =
-        targetOS === 'win'
-            ? path.join(binRoot, 'python', 'python.exe')
-            : path.join(binRoot, 'python', 'bin', 'python3');
-
-    const { exec } = require('child_process');
-    const execPromise = promisify(exec);
-
-    // On Windows, run pgAdmin inside its own venv so pyvenv.cfg exists and layout
-    // matches what pgAdmin expects. On mac we keep current behaviour (no venv)
-    // because the app is already working fine there.
-    let effectivePython = basePython;
-
-    if (targetOS === 'win') {
-        const venvDir = path.join(binRoot, 'python', 'pgadmin-venv');
-        const venvCfg = path.join(venvDir, 'pyvenv.cfg');
-        const venvPython = path.join(venvDir, 'Scripts', 'python.exe');
-
-        try {
-            const venvExists = await fs.pathExists(venvDir);
-            const cfgExists = await fs.pathExists(venvCfg);
-
-            if (!venvExists || !cfgExists) {
-                console.log(`[${targetOS}] Creating pgAdmin virtualenv at ${venvDir}...`);
-                console.log(`[${targetOS}] Using base Python: ${basePython}`);
-                await fs.ensureDir(path.dirname(venvDir));
-                await execPromise(`"${basePython}" -m venv "${venvDir}"`);
-                console.log(`[${targetOS}] pgAdmin virtualenv created.`);
-            } else {
-                console.log(`[${targetOS}] pgAdmin virtualenv already present at ${venvDir}.`);
-            }
-
-            if (await fs.pathExists(venvPython)) {
-                effectivePython = venvPython;
-                console.log(`[${targetOS}] Using venv Python for pgAdmin: ${effectivePython}`);
-                // Log Python version for debugging
-                try {
-                    const { stdout } = await execPromise(`"${effectivePython}" --version`);
-                    console.log(`[${targetOS}] venv Python version: ${stdout.trim()}`);
-                } catch (e) {
-                    console.warn(`[${targetOS}] Failed to get venv Python version: ${e.message}`);
-                }
-            } else {
-                console.warn(
-                    `[${targetOS}] venv Python not found at ${venvPython}, falling back to base Python ${basePython}`
-                );
-            }
-        } catch (e) {
-            console.error(`[${targetOS}] Failed to create/use pgAdmin venv:`, e);
-            console.warn(`[${targetOS}] Falling back to base Python for pgAdmin installation.`);
-            effectivePython = basePython;
-        }
-    }
-
-    try {
-        console.log(`[${targetOS}] Upgrading pip using ${effectivePython}...`);
-        await execPromise(`"${effectivePython}" -m pip install --upgrade pip`);
-        console.log(`[${targetOS}] Pip upgraded.`);
-
-        console.log(`[${targetOS}] Installing pgAdmin4 using ${effectivePython}...`);
-        // Install specific version of pgadmin4 to avoid known registry issues in some newer builds.
-        // --no-cache-dir avoids storing pip wheel cache inside the venv, reducing bundle size.
-        await execPromise(`"${effectivePython}" -m pip install --no-cache-dir pgadmin4`);
-        console.log(`[${targetOS}] pgAdmin4 installed successfully.`);
-    } catch (e) {
-        console.error(`[${targetOS}] Failed to install pgAdmin:`, e);
-    }
+// pgAdmin has been removed from the bundle; the app uses the built-in database browser only.
+async function installPgAdmin(_targetOS) {
+    console.log('[setup] pgAdmin is no longer bundled; skipping.');
 }
 
 async function run() {

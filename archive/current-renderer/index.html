@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Portable PostGIS Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Custom Title Bar (Drag Region) -->
+    <div id="app-title-bar">
+        <div class="title-bar-content">
+            <img src="./assets/logo_full_n.png" class="brand-logo" alt="infinity2zero">
+            <span class="app-title">Portable-PostGIS</span>
+        </div>
+    </div>
+
+    <!-- Views Container -->
+    <div id="views-container">
+        
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view active">
+            <div class="dashboard-grid">
+                <!-- Services Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Services</span>
+                        <img src="./assets/connection-details.svg" id="btn-goto-connection" class="icon-img" style="cursor: pointer;" data-tooltip="Connection Details">
+                    </div>
+                    <div>
+                        <!-- PostgreSQL Service Row -->
+                        <div class="service-row" style="display:flex; flex-direction:column; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--color-border);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-weight:600;">PostgreSQL</span>
+                                    <span id="postgres-status" class="status-badge status-stopped">Stopped</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <input type="number" id="service-pg-port" class="form-control" style="width:80px; padding:4px 8px; height:24px;" placeholder="5432">
+                                    <button id="btn-control-postgres" class="btn btn--primary btn--sm" style="min-width:70px;" data-tooltip="Start/Stop PostgreSQL">Start</button>
+                                </div>
+                            </div>
+                            <div id="postgres-error" style="font-size:var(--font-size-sm); color:var(--color-error); display:none;"></div>
+                        </div>
+
+                        <!-- pgAdmin Service Row -->
+                        <div class="service-row" style="display:flex; flex-direction:column;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-weight:600;">pgAdmin</span>
+                                    <span id="pgadmin-status" class="status-badge status-stopped">Stopped</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <input type="number" id="service-pgadmin-port" class="form-control" style="width:80px; padding:4px 8px; height:24px;" placeholder="5050">
+                                    <button id="btn-control-pgadmin" class="btn btn--secondary btn--sm" style="min-width:70px;" disabled data-tooltip="Start PostgreSQL first">Start</button>
+                                </div>
+                            </div>
+                            <div id="pgadmin-error" style="font-size:var(--font-size-sm); color:var(--color-error); display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Extensions Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Extensions</span>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                             <button id="btn-refresh-extensions" class="btn btn--secondary btn--sm" style="border:none; background:transparent; padding:4px; cursor:pointer;" data-tooltip="Refresh Extensions">
+                                <img src="./assets/reload.svg" class="icon-img" alt="Refresh">
+                             </button>
+                             <button id="btn-extensions-settings" class="btn btn--secondary btn--sm" style="border:none; background:transparent; padding:4px; cursor:pointer;" data-tooltip="Manage Extensions">
+                                <img src="./assets/settings.svg" class="icon-img" alt="Settings">
+                             </button>
+                        </div>
+                    </div>
+                    <div id="extensions-container" class="extensions-list" style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <span class="status-loading">Checking extensions...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div class="card" style="display:flex; flex-direction:column; flex-grow:1; margin-bottom:0;">
+                <div class="card-header">
+                    <span class="card-title">System Logs</span>
+                </div>
+                <div id="logs" class="logs-container"></div>
+            </div>
+        </div>
+
+        <!-- pgAdmin View -->
+        <div id="pgadmin-view" class="view" style="">
+            <webview id="pgadmin-webview" src="about:blank" partition="persist:pgadmin" style="width:100%; height:100%; border:none; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);"></webview>
+        </div>
+
+        <!-- Settings View (Full Page) -->
+        <div id="settings-view" class="view">
+            <div class="settings-container">
+                <h1 style="margin-bottom: var(--space-24);">Settings</h1>
+
+                <!-- Connection Details Card -->
+                <div class="card settings-section" id="settings-connection-section">
+                    <h3>Connection Details</h3>
+                    <p class="text-secondary" style="margin-bottom: 12px;">Use these details to connect to the database programmatically.</p>
+                    <div style="background: var(--color-bg-secondary); padding: 16px; border-radius: 6px; border: 1px solid var(--color-border);">
+                        <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; font-family: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', monospace; font-size: 13px; color: var(--color-text);">
+                            <span style="color: var(--color-text-secondary);">Host:</span> <span id="conn-host">localhost</span>
+                            <span style="color: var(--color-text-secondary);">Port:</span> <span id="conn-port">5432</span>
+                            <span style="color: var(--color-text-secondary);">User:</span> <span id="conn-user">postgres</span>
+                            <span style="color: var(--color-text-secondary);">Password:</span> <span id="conn-pass">postgres</span> <!-- Default is empty usually, but let's see -->
+                            <span style="color: var(--color-text-secondary);">Database:</span> <span id="conn-db">postgres</span>
+                        </div>
+                        <div style="margin-top: 16px; display: flex; gap: 8px;">
+                            <button id="btn-copy-conn-string" class="btn btn--secondary btn--sm" style="flex: 1;" data-tooltip="Copy Connection URL">Copy URL</button>
+                            <button id="btn-copy-conn-json" class="btn btn--secondary btn--sm" style="flex: 1;" data-tooltip="Copy JSON Object">Copy JSON</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Service Status & URLs -->
+                <div class="card settings-section" id="settings-status-section">
+                    <h3>Service Status</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                        <!-- PostgreSQL Status -->
+                        <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--color-border);">
+                            <div style="font-weight: 600; margin-bottom: 8px;">PostgreSQL / PostGIS</div>
+                            <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">Port: <span id="status-pg-port" style="color: var(--color-text);">Stopped</span></div>
+                            <div style="font-size: 13px; color: var(--color-text-secondary);">URL: <span id="status-pg-url" style="color: var(--color-text);">-</span></div>
+                        </div>
+                        
+                        <!-- pgAdmin Status -->
+                        <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--color-border);">
+                            <div style="font-weight: 600; margin-bottom: 8px;">pgAdmin 4</div>
+                            <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">Port: <span id="status-pga-port" style="color: var(--color-text);">Stopped</span></div>
+                            <div style="font-size: 13px; color: var(--color-text-secondary);">URL: <span id="status-pga-url" style="color: var(--color-text);">-</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Version Info -->
+                <div class="card settings-section" id="settings-version-section">
+                    <h3>Versions</h3>
+                    <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--color-border); margin-top: 12px;">
+                         <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 13px;">
+                             <span style="color: var(--color-text-secondary);">PostgreSQL:</span> <span id="ver-postgres">Loading...</span>
+                             <span style="color: var(--color-text-secondary);">PostGIS:</span> <span id="ver-postgis">Loading...</span>
+                             <span style="color: var(--color-text-secondary);">pgAdmin:</span> <span id="ver-pgadmin">Loading...</span>
+                         </div>
+                    </div>
+                </div>
+
+                <!-- Appearance Section -->
+                <div class="card settings-section">
+                    <h3>Appearance</h3>
+                    <div class="form-group">
+                        <label class="form-label">Theme</label>
+                        <div style="display:flex; gap:8px;" id="theme-toggles">
+                            <button class="btn btn--secondary theme-btn" data-theme="light" data-tooltip="Light Mode">Light</button>
+                            <button class="btn btn--secondary theme-btn" data-theme="dark" data-tooltip="Dark Mode">Dark</button>
+                            <button class="btn btn--primary theme-btn" data-theme="auto" data-tooltip="System Default">Auto</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card settings-section">
+                    <h3>General</h3>
+                    <div class="form-group">
+                         <label class="form-label">Application Guide</label>
+                         <p class="text-secondary">View the first-time onboarding guide and documentation.</p>
+                         <button id="btn-show-guide" class="btn btn--secondary" data-tooltip="Open Onboarding Guide">Show Usage Guide</button>
+                    </div>
+                </div>
+
+                <div class="card settings-section" id="settings-ports-section">
+                    <h3>Database Configuration</h3>
+                    
+                    <div class="form-group" style="margin-bottom: var(--space-20);">
+                        <label class="form-label">Postgres Port</label>
+                        <input type="number" class="form-control" id="setting-pg-port" placeholder="5432">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: var(--space-20);">
+                        <label class="form-label">pgAdmin Port</label>
+                        <input type="number" class="form-control" id="setting-pgadmin-port" placeholder="5050">
+                    </div>
+                    
+                    <div style="display:flex; justify-content:flex-end; margin-bottom: var(--space-20);">
+                        <button id="btn-save-ports" class="btn btn--primary btn--sm" data-tooltip="Save and Restart">Save Port Settings</button>
+                    </div>
+                    <p style="font-size:var(--font-size-sm); color:var(--color-text-secondary);">Note: Port changes will take effect on the next application start.</p>
+
+                    <div class="form-group">
+                        <label class="form-label">Database Password (User: postgres)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="password" class="form-control" id="setting-db-pass" placeholder="Enter new password">
+                            <button id="btn-set-pass" class="btn btn--primary" data-tooltip="Coming Soon">Set Password</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Extensions Management Section -->
+                <div class="card settings-section" id="settings-extensions-section">
+                    <h3>Extensions</h3>
+                    <p class="text-secondary" style="margin-bottom:16px;">Enable or disable spatial extensions for your database.</p>
+                    <div id="settings-extensions-list" style="display:flex; flex-direction:column; gap:8px;">
+                        <span class="status-loading">Loading extensions...</span>
+                    </div>
+                </div>
+
+                <div class="card settings-section" style="border-color: var(--color-error);">
+                    <h3 style="color: var(--color-error);">Danger Zone</h3>
+                    <p>Resetting the application will wipe all database data and configurations. This action cannot be undone.</p>
+                    <button id="btn-wipe-data" class="btn btn--danger btn--full-width" data-tooltip="Permanent Data Deletion">Wipe All Data & Reset App</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Onboarding / Usage Guide View -->
+        <div id="onboarding-view" class="view">
+            <div class="onboarding-container">
+                <h1 style="margin-bottom: var(--space-8); color: var(--color-primary);">Welcome to Portable PostGIS</h1>
+                <p style="font-size: var(--font-size-lg); color: var(--color-text-secondary); margin-bottom: var(--space-16);">Your self-contained spatial database environment.</p>
+
+                <div class="carousel">
+                    <div class="carousel-track">
+                        <div class="carousel-slide active">
+                            <div class="step-card">
+                                <div style="display:flex; align-items:flex-start;">
+                                    <span class="step-number">1</span>
+                                    <div>
+                                        <h4>Dashboard Overview</h4>
+                                        <p>Monitor the status of your PostgreSQL database and pgAdmin interface directly from the dashboard. Check system logs for any activity or issues.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="carousel-slide">
+                            <div class="step-card">
+                                <div style="display:flex; align-items:flex-start;">
+                                    <span class="step-number">2</span>
+                                    <div>
+                                        <h4>Accessing the Database</h4>
+                                        <p>Click the <strong>Database</strong> tab (Elephant icon) to open pgAdmin. The server "Portable Postgres" is pre-configured.</p>
+                                        <p><strong>Default Credentials:</strong><br>User: <code>postgres</code><br>Password: (No password by default, or set one in Settings)</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="carousel-slide">
+                            <div class="step-card">
+                                <div style="display:flex; align-items:flex-start;">
+                                    <span class="step-number">3</span>
+                                    <div>
+                                        <h4>Managing Extensions</h4>
+                                        <p>PostGIS and other spatial extensions are pre-installed. You can enable or disable them from the dashboard or settings.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-controls">
+                    <button id="btn-onboarding-prev" class="btn btn--secondary btn--sm" disabled>Previous</button>
+                    <button id="btn-onboarding-next" class="btn btn--primary btn--sm">Next</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Floating Navigation -->
+    <div id="floating-nav">
+        <div class="nav-item active" id="nav-dashboard" data-target="dashboard-view" data-tooltip="Dashboard">
+            <img src="./assets/dashboard.svg" alt="Dashboard" class="nav-icon-img">
+        </div>
+        <div class="nav-item disabled" id="nav-pgadmin" data-target="pgadmin-view" data-tooltip="Database (Waiting for pgAdmin...)">
+            <img src="./assets/database.svg" alt="Database" class="nav-icon-img">
+        </div>
+        <div class="nav-item" id="nav-settings" data-target="settings-view" data-tooltip="Settings">
+            <img src="./assets/settings.svg" alt="Settings" class="nav-icon-img">
+        </div>
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <div id="status-bar">
+        <span class="version-text">v1.0.0</span>
+        <span class="credits-text">Developed with love by <a id="credits-link" href="https://github.com/infinity2zero">infinity2zero</a></span>
+    </div>
+
+    <!-- Modals -->
+    <!-- Port conflict modal removed in favor of inline controls -->
+
+    <script src="renderer.js"></script>
+</body>
+</html>

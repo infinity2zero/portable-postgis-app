@@ -1,0 +1,1254 @@
+<div class="database-view">
+  <aside class="sidebar" [style.width.px]="sidebarWidth">
+    <div class="sidebar-head">Database</div>
+    <div class="explorer-panels">
+      <!-- Panel 1: Databases -->
+      <div class="explorer-panel panel-1" [class.collapsed]="panel1Collapsed" [style.height.px]="panel1Collapsed ? null : panel1Height" [style.flex]="panel1Collapsed ? '0 0 auto' : '0 0 ' + panel1Height + 'px'">
+        <div class="panel-head" (click)="togglePanel1()" role="button" tabindex="0" (keydown.enter)="togglePanel1(); $event.preventDefault()" title="Databases – select a database to browse">
+          <span class="panel-toggle" aria-hidden="true">{{ panel1Collapsed ? '+' : '−' }}</span>
+          <span class="panel-title">Databases</span>
+        </div>
+        @if (!panel1Collapsed) {
+          <div class="panel-body">
+            <div class="folder folder-root connection-row" (click)="toggleConnection(); $event.stopPropagation()" (contextmenu)="onExplorerContextMenu($event, { type: 'root' })" role="button" tabindex="0">
+              <span class="tree-toggle" aria-hidden="true">{{ connectionExpanded ? '−' : '+' }}</span>
+              <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4v8c0 1.1 2.24 2 5 2s5-.9 5-2V4"/><path d="M3 8c0 1.1 2.24 2 5 2s5-.9 5-2"/></svg></span>
+              <span class="tree-label" appTitleWhenTruncated="Portable Postgres">Portable Postgres</span>
+              <button type="button" class="tree-action more-dots" (click)="openConnectionMenu($event)" title="Actions" aria-label="Connection actions">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="4" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="8" cy="12" r="1.25"/></svg>
+              </button>
+            </div>
+            @if (connectionExpanded) {
+              <ul class="tree-children db-list">
+                @for (db of databasesList; track db) {
+                  <li class="tree-branch">
+                    <div class="folder db-item" [class.selected]="selectedDatabase === db" (click)="selectDatabase(db); $event.stopPropagation()" (contextmenu)="onExplorerContextMenu($event, { type: 'database', database: db })" role="button" tabindex="0">
+                      <span class="tree-toggle"></span>
+                      <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h5l2 2h5v6H2z"/></svg></span>
+                      <span class="tree-label" [appTitleWhenTruncated]="db">{{ db }}</span>
+                      <button type="button" class="tree-action more-dots" (click)="openDatabaseMenu($event, db)" title="Actions" aria-label="Database actions">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="4" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="8" cy="12" r="1.25"/></svg>
+                    </button>
+                    </div>
+                  </li>
+                }
+                @if (databasesList.length === 0) {
+                  <li class="tree-empty-inline">No databases</li>
+                }
+              </ul>
+            }
+          </div>
+        }
+      </div>
+      @if (!panel1Collapsed) {
+        <div class="panel-splitter" (mousedown)="startPanel1Resize($event)" role="separator" title="Drag to resize"></div>
+      }
+      <!-- Panel 2: Tree for selected DB -->
+      <div class="explorer-panel panel-2" [class.collapsed]="panel2Collapsed" [style.height.px]="panel2Collapsed ? null : panel2Height" [style.flex]="panel2Collapsed ? '0 0 auto' : '1 1 ' + panel2Height + 'px'">
+        <div class="panel-head" (click)="togglePanel2()" role="button" tabindex="0" (keydown.enter)="togglePanel2(); $event.preventDefault()">
+          <span class="panel-toggle" aria-hidden="true">{{ panel2Collapsed ? '+' : '−' }}</span>
+          <span class="panel-title" [appTitleWhenTruncated]="selectedDatabase ? (selectedDatabase + ' – Tables, Views, Functions') : 'Select a database above'">{{ selectedDatabase ? (selectedDatabase + ' – Tables, Views, Functions') : 'Select a database above' }}</span>
+        </div>
+        @if (!panel2Collapsed && selectedDatabase) {
+          <div class="panel-body">
+            @if (treeError) {
+              <div class="tree-error">{{ treeError }}</div>
+            }
+            <input type="text" class="tree-search" placeholder="Search…" [(ngModel)]="treeSearchQuery" (ngModelChange)="treeSearchQuery = $event" />
+            <ul class="tree tree-root">
+            @for (schema of filteredSchemas; track schema.name) {
+              <li class="tree-branch">
+                <div class="folder" (click)="toggleSchema(schema); $event.stopPropagation()" (contextmenu)="onExplorerContextMenu($event, { type: 'schema', schema: schema.name })" role="button" tabindex="0" (keydown.enter)="toggleSchema(schema); $event.preventDefault()" [title]="'Schema: ' + schema.name">
+                  <span class="tree-toggle" aria-hidden="true">{{ schema.expanded ? '−' : '+' }}</span>
+                  <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h5l2 2h5v6H2z"/></svg></span>
+                  <span class="tree-label">{{ schema.name }}</span>
+                  @if (schema.loading) {
+                    <span class="tree-loading">...</span>
+                  }
+                </div>
+                @if (schema.expanded) {
+                  <ul class="tree-children">
+                    <li class="tree-branch tree-section-row">
+                      <div class="folder tree-section-head section-tables" (click)="toggleSchemaSection(schema, 'tables'); $event.stopPropagation()" role="button" tabindex="0" (keydown.enter)="toggleSchemaSection(schema, 'tables'); $event.preventDefault()" title="Tables in {{ schema.name }}">
+                        <span class="tree-toggle" aria-hidden="true">{{ isSectionExpanded(schema, 'tables') ? '−' : '+' }}</span>
+                        <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v10H2z"/><path d="M2 7h12M6 3v10"/></svg></span>
+                        <span class="tree-label">Tables</span>
+                      </div>
+                      @if (isSectionExpanded(schema, 'tables')) {
+                        <ul class="tree-children">
+                    @for (table of schema.tables; track table) {
+                      <li class="tree-branch tree-object">
+                        <div class="folder" (click)="toggleTable(schema.name, table); $event.stopPropagation()" (contextmenu)="onExplorerContextMenu($event, { type: 'table', schema: schema.name, table })" role="button" tabindex="0" [title]="'Table: ' + schema.name + '.' + table">
+                          <span class="tree-toggle" aria-hidden="true">{{ isTableExpanded(schema.name, table) ? '−' : '+' }}</span>
+                          <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v10H2z"/><path d="M2 7h12M6 3v10"/></svg></span>
+                          <span class="tree-label" (click)="selectTable(schema.name, table); $event.stopPropagation()" role="button">{{ table }}</span>
+                        </div>
+                        @if (isTableExpanded(schema.name, table)) {
+                          <ul class="tree-children">
+                            <li class="tree-section"><span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="6" height="12" rx="1"/></svg></span><span>Columns</span></li>
+                            @for (col of getTableColumns(schema.name, table); track col.column_name) {
+                              <li class="tree-leaf" (contextmenu)="onExplorerContextMenu($event, { type: 'column', schema: schema.name, table, name: col.column_name, dataType: col.data_type })">
+                                <span class="tree-icon" aria-hidden="true">@if (col.is_primary_key) {
+                                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="8" r="2.5"/><path d="M8.5 6.5L14 2l1 1.5-5 4.5"/><path d="M9 9l4 4"/></svg>
+                                } @else {
+                                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="6" height="12" rx="1"/></svg>
+                                }</span>
+                                <span class="tree-label">{{ col.column_name }} ({{ col.data_type }})</span>
+                              </li>
+                            }
+                            @if (getTableColumns(schema.name, table).length === 0) {
+                              <li class="tree-empty-inline">No columns</li>
+                            }
+                            <li class="tree-section"><span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h4v8H2zM10 4h4v8h-4z"/><path d="M4 8h8"/></svg></span><span>Indexes</span></li>
+                            @for (idx of getTableIndexes(schema.name, table); track idx.name) {
+                              <li class="tree-item-readonly" (contextmenu)="onExplorerContextMenu($event, { type: 'index', schema: schema.name, table, name: idx.name })">
+                                <span class="tree-toggle"></span>
+                                <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h4v8H2zM10 4h4v8h-4z"/><path d="M4 8h8"/></svg></span>
+                                <span class="tree-label">{{ idx.name }}</span>
+                              </li>
+                            }
+                            @if (getTableIndexes(schema.name, table).length === 0) {
+                              <li class="tree-empty-inline">No indexes</li>
+                            }
+                            <li class="tree-section"><span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 5.5l2 2-2 2"/><path d="M10.5 10.5l-2-2 2-2"/><path d="M3 8h2l2-2 2 2 2-2h2"/></svg></span><span>Constraints</span></li>
+                            @for (con of getTableConstraints(schema.name, table); track con.name) {
+                              <li class="tree-item-readonly" (contextmenu)="onExplorerContextMenu($event, { type: 'constraint', schema: schema.name, table, name: con.name })">
+                                <span class="tree-toggle"></span>
+                                <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 5.5l2 2-2 2"/><path d="M10.5 10.5l-2-2 2-2"/><path d="M3 8h2l2-2 2 2 2-2h2"/></svg></span>
+                                <span class="tree-label">{{ con.name }} ({{ con.type }})</span>
+                              </li>
+                            }
+                            @if (getTableConstraints(schema.name, table).length === 0) {
+                              <li class="tree-empty-inline">No constraints</li>
+                            }
+                            <li class="tree-section"><span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2L4 8h3l-1 6 6-6H9l1-6z"/></svg></span><span>Triggers</span></li>
+                            @for (trg of getTableTriggers(schema.name, table); track trg.name) {
+                              <li class="tree-item-readonly" (contextmenu)="onExplorerContextMenu($event, { type: 'trigger', schema: schema.name, table, name: trg.name })">
+                                <span class="tree-toggle"></span>
+                                <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2L4 8h3l-1 6 6-6H9l1-6z"/></svg></span>
+                                <span class="tree-label">{{ trg.name }} ({{ trg.event }})</span>
+                              </li>
+                            }
+                            @if (getTableTriggers(schema.name, table).length === 0) {
+                              <li class="tree-empty-inline">No triggers</li>
+                            }
+                          </ul>
+                        }
+                      </li>
+                    }
+                    @if (!schema.loading && schema.tables.length === 0) {
+                      <li class="tree-empty-inline">No tables</li>
+                    }
+                        </ul>
+                      }
+                    </li>
+                    <li class="tree-branch tree-section-row">
+                      <div class="folder tree-section-head section-views" (click)="toggleSchemaSection(schema, 'views'); $event.stopPropagation()" role="button" tabindex="0" (keydown.enter)="toggleSchemaSection(schema, 'views'); $event.preventDefault()" title="Views in {{ schema.name }}">
+                        <span class="tree-toggle" aria-hidden="true">{{ isSectionExpanded(schema, 'views') ? '−' : '+' }}</span>
+                        <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3C4.5 3 2 8 2 8s2.5 5 6 5 6-5 6-5-2.5-5-6-5z"/><circle cx="8" cy="8" r="2.5"/></svg></span>
+                        <span class="tree-label">Views</span>
+                      </div>
+                      @if (isSectionExpanded(schema, 'views')) {
+                        <ul class="tree-children">
+                    @for (view of schema.views; track view) {
+                      <li class="tree-branch tree-object">
+                        <div class="folder" (click)="toggleView(schema.name, view); $event.stopPropagation()" (contextmenu)="onExplorerContextMenu($event, { type: 'view', schema: schema.name, table: view })" role="button" tabindex="0" [title]="'View: ' + schema.name + '.' + view">
+                          <span class="tree-toggle" aria-hidden="true">{{ isViewExpanded(schema.name, view) ? '−' : '+' }}</span>
+                          <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3C4.5 3 2 8 2 8s2.5 5 6 5 6-5 6-5-2.5-5-6-5z"/><circle cx="8" cy="8" r="2.5"/></svg></span>
+                          <span class="tree-label" (click)="selectTable(schema.name, view); $event.stopPropagation()" role="button">{{ view }}</span>
+                        </div>
+                        @if (isViewExpanded(schema.name, view)) {
+                          <ul class="tree-children">
+                            <li class="tree-section"><span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="6" height="12" rx="1"/></svg></span><span>Columns</span></li>
+                            @for (col of getViewColumns(schema.name, view); track col.column_name) {
+                              <li class="tree-leaf" (contextmenu)="onExplorerContextMenu($event, { type: 'column', schema: schema.name, table: view, name: col.column_name, dataType: col.data_type })">
+                                <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="6" height="12" rx="1"/></svg></span>
+                                <span class="tree-label">{{ col.column_name }} ({{ col.data_type }})</span>
+                              </li>
+                            }
+                            @if (getViewColumns(schema.name, view).length === 0) {
+                              <li class="tree-empty-inline">No columns</li>
+                            }
+                          </ul>
+                        }
+                      </li>
+                    }
+                    @if (!schema.loading && schema.views.length === 0) {
+                      <li class="tree-empty-inline">No views</li>
+                    }
+                        </ul>
+                      }
+                    </li>
+                    <li class="tree-branch tree-section-row">
+                      <div class="folder tree-section-head section-sequences" (click)="toggleSchemaSection(schema, 'sequences'); $event.stopPropagation()" role="button" tabindex="0" (keydown.enter)="toggleSchemaSection(schema, 'sequences'); $event.preventDefault()" title="Sequences in {{ schema.name }}">
+                        <span class="tree-toggle" aria-hidden="true">{{ isSectionExpanded(schema, 'sequences') ? '−' : '+' }}</span>
+                        <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2v4l2-2 2 2 2-2 2 2V2"/><path d="M4 14v-4l2 2 2-2 2 2 2-2v4"/></svg></span>
+                        <span class="tree-label">Sequences</span>
+                      </div>
+                      @if (isSectionExpanded(schema, 'sequences')) {
+                        <ul class="tree-children">
+                    @for (seq of schema.sequences; track seq) {
+                      <li class="tree-item-readonly" (contextmenu)="onExplorerContextMenu($event, { type: 'sequence', schema: schema.name, name: seq })">
+                        <span class="tree-toggle"></span>
+                        <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2v4l2-2 2 2 2-2 2 2V2"/><path d="M4 14v-4l2 2 2-2 2 2 2-2v4"/></svg></span>
+                        <span class="tree-label">{{ seq }}</span>
+                      </li>
+                    }
+                    @if (!schema.loading && schema.sequences.length === 0) {
+                      <li class="tree-empty-inline">No sequences</li>
+                    }
+                        </ul>
+                      }
+                    </li>
+                    <li class="tree-branch tree-section-row">
+                      <div class="folder tree-section-head section-functions" (click)="toggleSchemaSection(schema, 'functions'); $event.stopPropagation()" role="button" tabindex="0" (keydown.enter)="toggleSchemaSection(schema, 'functions'); $event.preventDefault()" title="Functions in {{ schema.name }}">
+                        <span class="tree-toggle" aria-hidden="true">{{ isSectionExpanded(schema, 'functions') ? '−' : '+' }}</span>
+                        <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2l2 4-2 4h4l-2-4 2-4H6z"/><path d="M3 6v4M13 6v4"/></svg></span>
+                        <span class="tree-label">Functions</span>
+                      </div>
+                      @if (isSectionExpanded(schema, 'functions')) {
+                        <ul class="tree-children">
+                    @for (fn of schema.functions; track $index) {
+                      <li class="tree-item-readonly" (contextmenu)="onExplorerContextMenu($event, { type: 'function', schema: schema.name, name: fn })">
+                        <span class="tree-toggle"></span>
+                        <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2l2 4-2 4h4l-2-4 2-4H6z"/><path d="M3 6v4M13 6v4"/></svg></span>
+                        <span class="tree-label">{{ fn }}</span>
+                      </li>
+                    }
+                    @if (!schema.loading && schema.functions.length === 0) {
+                      <li class="tree-empty-inline">No functions</li>
+                    }
+                        </ul>
+                      }
+                    </li>
+                  </ul>
+                }
+              </li>
+            }
+            @if (!loading && !treeError && schemas.length === 0) {
+              <li class="tree-empty">No schemas</li>
+            }
+            @if (treeSearchQuery.trim() && filteredSchemas.length === 0) {
+              <li class="tree-empty">No results</li>
+            }
+            </ul>
+          </div>
+        }
+      </div>
+      @if (!panel2Collapsed) {
+        <div class="panel-splitter" (mousedown)="startPanel2Resize($event)" role="separator" title="Drag to resize"></div>
+      }
+      <!-- Panel 3: Server & Extensions (collapsed by default, sticks to bottom) -->
+      <div class="explorer-panel panel-3" [class.collapsed]="panel3Collapsed">
+        <div class="panel-head" (click)="togglePanel3()" role="button" tabindex="0" (keydown.enter)="togglePanel3(); $event.preventDefault()">
+          <span class="panel-toggle" aria-hidden="true">{{ panel3Collapsed ? '+' : '−' }}</span>
+          <span class="panel-title">Server & Extensions</span>
+        </div>
+        @if (!panel3Collapsed) {
+          <div class="panel-body">
+            <div class="panel3-section">
+              <div class="panel3-subhead">Server</div>
+              <div class="folder tree-section-head section-roles" (click)="rolesExpanded = !rolesExpanded" role="button" tabindex="0" title="Database roles (cluster-wide)">
+                <span class="tree-toggle" aria-hidden="true">{{ rolesExpanded ? '−' : '+' }}</span>
+                <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5"/></svg></span>
+                <span class="tree-label">Roles</span>
+              </div>
+              @if (rolesExpanded) {
+                <ul class="tree-children">
+                  @for (role of rolesList; track role) {
+                    <li class="tree-item-readonly">
+                      <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2"/><path d="M3 13c0-2.5 2-4.5 5-4.5s5 2 5 4.5"/></svg></span>
+                      <span class="tree-label">{{ role }}</span>
+                    </li>
+                  }
+                  @if (rolesList.length === 0) {
+                    <li class="tree-empty-inline">No roles</li>
+                  }
+                </ul>
+              }
+              <div class="folder tree-section-head section-tablespaces" (click)="tablespacesExpanded = !tablespacesExpanded" role="button" tabindex="0" title="Tablespaces (cluster-wide disk locations)">
+                <span class="tree-toggle" aria-hidden="true">{{ tablespacesExpanded ? '−' : '+' }}</span>
+                <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h4l2 2h6v6H2z"/><path d="M6 6v6"/></svg></span>
+                <span class="tree-label">Tablespaces</span>
+              </div>
+              @if (tablespacesExpanded) {
+                <ul class="tree-children">
+                  @for (tbl of tablespacesList; track tbl) {
+                    <li class="tree-item-readonly">
+                      <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h4l2 2h6v6H2z"/></svg></span>
+                      <span class="tree-label">{{ tbl }}</span>
+                    </li>
+                  }
+                  @if (tablespacesList.length === 0) {
+                    <li class="tree-empty-inline">No tablespaces</li>
+                  }
+                </ul>
+              }
+            </div>
+            <div class="panel3-section">
+              <div class="panel3-subhead">This DB: Extensions</div>
+              <div class="folder tree-section-head section-extensions-p3" (click)="toggleExtensions(); $event.stopPropagation()" role="button" tabindex="0" title="PostgreSQL extensions in this database">
+                <span class="tree-toggle" aria-hidden="true">{{ extensionsExpanded ? '−' : '+' }}</span>
+                <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2l1 2-1 2h2l1-2-1-2H6z"/><path d="M10 10l1 2-1 2h2l1-2-1-2h-2z"/><path d="M4 8h2l2 2-2 2H4l-1-2 1-2z"/><path d="M10 6l-2 2 2 2 1-2-1-2z"/></svg></span>
+                <span class="tree-label">Extensions</span>
+                @if (extensionsLoading) {
+                  <span class="tree-loading">...</span>
+                }
+              </div>
+              @if (extensionsExpanded) {
+                <ul class="tree-children">
+                  <li class="tree-subhead-inline">Enabled</li>
+                  @for (ext of extensionsList; track ext.name) {
+                    <li class="tree-item-readonly" (contextmenu)="onExplorerContextMenu($event, { type: 'extension', name: ext.name, version: ext.version })">
+                      <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2l1 2-1 2h2l1-2-1-2H6z"/><path d="M10 10l1 2-1 2h2l1-2-1-2h-2z"/></svg></span>
+                      <span class="tree-label">{{ ext.name }} ({{ ext.version }})</span>
+                    </li>
+                  }
+                  @if (!extensionsLoading && extensionsList.length === 0) {
+                    <li class="tree-empty-inline">None</li>
+                  }
+                  <li class="tree-subhead-inline">Available (not enabled)</li>
+                  @for (name of availableNotEnabled; track name) {
+                    <li class="tree-item-readonly" (contextmenu)="onExplorerContextMenu($event, { type: 'extension_available', name: name })">
+                      <span class="tree-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2l1 2-1 2h2l1-2-1-2H6z"/><path d="M10 10l1 2-1 2h2l1-2-1-2h-2z"/></svg></span>
+                      <span class="tree-label">{{ name }}</span>
+                    </li>
+                  }
+                  @if (!extensionsLoading && availableNotEnabled.length === 0) {
+                    <li class="tree-empty-inline">None</li>
+                  }
+                </ul>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+    <button type="button" class="btn-refresh" (click)="refresh()">Refresh</button>
+  </aside>
+  @if (erContextMenuOpen && erContextMenuNode) {
+    <div class="er-context-menu" [style.left.px]="erContextMenuX" [style.top.px]="erContextMenuY" (click)="$event.stopPropagation()">
+      <button type="button" (click)="erOpenTableFromContextMenu()">Open table</button>
+    </div>
+  }
+  @if (explorerContextMenuOpen && explorerContext) {
+    <div class="explorer-context-menu" [style.left.px]="explorerContextMenuX" [style.top.px]="explorerContextMenuY" (click)="$event.stopPropagation()">
+      @if (explorerCanCopyName(explorerContext)) {
+        <button type="button" (click)="explorerCopyName()">Copy name</button>
+      }
+      @if (explorerCanCopyQualified(explorerContext)) {
+        <button type="button" (click)="explorerCopyQualified()">Copy qualified name</button>
+      }
+      @if (explorerCanViewData(explorerContext)) {
+        <button type="button" (click)="explorerViewData()">View data</button>
+      }
+      @if (explorerCanViewErDiagram(explorerContext)) {
+        <button type="button" (click)="explorerViewErDiagram()">View ER diagram</button>
+      }
+      @if (explorerCanViewErDiagramTable(explorerContext)) {
+        <button type="button" (click)="explorerViewErDiagramTable()">View ER diagram (this table)</button>
+      }
+      @if (explorerCanSelectInQuery(explorerContext)) {
+        <button type="button" (click)="explorerSelectInQuery()">SELECT * in Query tab</button>
+      }
+      @if (explorerCanRefreshTable(explorerContext)) {
+        <button type="button" (click)="explorerRefreshTable()">Refresh</button>
+      }
+      @if (explorerCanTruncateTable(explorerContext)) {
+        <button type="button" (click)="explorerTruncateTable()">Truncate</button>
+      }
+      @if (explorerCanExportTable(explorerContext)) {
+        <button type="button" (click)="explorerExportTable()">Export table…</button>
+      }
+      @if (explorerCanImportTable(explorerContext)) {
+        <button type="button" (click)="explorerImportTable()">Import into table…</button>
+      }
+      @if (explorerCanDropTable(explorerContext)) {
+        <button type="button" (click)="explorerDropTable()">Drop {{ explorerContext.type === 'view' ? 'view' : 'table' }}…</button>
+      }
+      @if (explorerCanCreateDatabase(explorerContext)) {
+        <button type="button" (click)="explorerCreateDatabase()">Create database…</button>
+      }
+      @if (explorerCanRefresh(explorerContext)) {
+        <button type="button" (click)="explorerRefresh()">Refresh</button>
+      }
+      @if (explorerCanCreateSchema(explorerContext)) {
+        <button type="button" (click)="explorerCreateSchema()">Create schema…</button>
+      }
+      @if (explorerCanRefreshDatabase(explorerContext)) {
+        <button type="button" (click)="explorerRefreshDatabase()">Refresh</button>
+      }
+      @if (explorerCanOpenQueryTool(explorerContext)) {
+        <button type="button" (click)="explorerOpenQueryTool()">Query tool</button>
+      }
+      @if (explorerCanBackupDatabase(explorerContext)) {
+        <button type="button" (click)="explorerBackupDatabase()">Backup database…</button>
+      }
+      @if (explorerCanRestoreDatabase(explorerContext)) {
+        <button type="button" (click)="explorerRestoreDatabase()">Restore…</button>
+      }
+      @if (explorerCanRefreshSchema(explorerContext)) {
+        <button type="button" (click)="explorerRefreshSchema()">Refresh schema</button>
+      }
+      @if (explorerCanDropSchema(explorerContext)) {
+        <button type="button" (click)="explorerDropSchema()">Drop schema…</button>
+      }
+      @if (explorerCanCreateTable(explorerContext)) {
+        <button type="button" (click)="explorerCreateTable()">Create table…</button>
+      }
+      @if (explorerCanEnableExtension(explorerContext)) {
+        <button type="button" (click)="explorerEnableExtension()">Enable</button>
+      }
+      @if (explorerCanDisableExtension(explorerContext)) {
+        <button type="button" (click)="explorerDisableExtension()">Disable</button>
+      }
+    </div>
+  }
+  @if (createSchemaOpen) {
+    <div class="wizard-backdrop" (click)="closeCreateSchemaDialog()"></div>
+    <div class="wizard-modal create-schema-dialog" (click)="$event.stopPropagation()">
+      <div class="wizard-header">
+        <h3>Create schema</h3>
+        <button type="button" class="wizard-close" (click)="closeCreateSchemaDialog()">×</button>
+      </div>
+      <div class="wizard-body">
+        <div class="wizard-form">
+          <label>Database</label>
+          <input type="text" class="wizard-input" [value]="createSchemaDatabase" readonly />
+          <label>Schema name <span class="wizard-required">*</span></label>
+          <input type="text" class="wizard-input" [(ngModel)]="createSchemaName" placeholder="my_schema" />
+          @if (createSchemaError) {
+            <div class="wizard-error">{{ createSchemaError }}</div>
+          }
+        </div>
+      </div>
+      <div class="wizard-footer">
+        <button type="button" class="wizard-btn-secondary" (click)="closeCreateSchemaDialog()">Cancel</button>
+        <button type="button" class="wizard-btn-primary" (click)="runCreateSchema()" [disabled]="createSchemaRunning || !createSchemaName.trim()">{{ createSchemaRunning ? 'Creating…' : 'Create schema' }}</button>
+      </div>
+    </div>
+  }
+  <div class="splitter" (mousedown)="startResize($event)" title="Drag to resize" role="separator" [attr.aria-valuenow]="sidebarWidth" aria-orientation="vertical"></div>
+  <div class="editor-wrap">
+    <div class="editor-tabs">
+      @for (tab of openTabs; track tab.id) {
+        <div class="tab" [class.active]="activeTabId === tab.id" [class.pinned]="tab.pinned" (click)="selectTab(tab.id)">
+          <span class="tab-label">{{ tab.title }}</span>
+          <button type="button" class="tab-pin" (click)="pinTab(tab.id, $event)" [class.pinned]="tab.pinned" [attr.title]="tab.pinned ? 'Unpin' : 'Pin'">
+            <svg class="tab-pin-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle class="pin-head" cx="8" cy="6" r="2"/>
+              <path class="pin-stem" d="M8 2v4M8 8v6"/>
+            </svg>
+          </button>
+          @if (tab.type !== 'overview') {
+            <button type="button" class="tab-close" (click)="closeTab(tab.id, $event)" title="Close">×</button>
+          }
+        </div>
+      }
+    </div>
+    @if (isOverviewActive) {
+      <div class="tab-content overview-content">
+        <div class="overview-header">
+          <h2>Overview of {{ selectedDatabase || 'postgres' }}</h2>
+          <p class="overview-subtitle">{{ selectedDatabase || 'postgres' }} &#64; localhost</p>
+          <button type="button" class="overview-refresh" (click)="loadOverviewStats()" [disabled]="overviewLoading" title="Refresh stats">Refresh</button>
+        </div>
+        @if (overviewLoading && !overviewStats) {
+          <p class="overview-loading">Loading analytics…</p>
+        } @else if (overviewError) {
+          <p class="overview-error">{{ overviewError }}</p>
+        } @else if (!selectedDatabase) {
+          <p class="overview-muted">Select a database from the sidebar to view its overview.</p>
+        } @else if (overviewStats) {
+          <section class="overview-summary">
+            <h3>Summary</h3>
+            <div class="overview-kpis">
+              <div class="overview-kpi">
+                <span class="overview-kpi-value">{{ formatBytes(overviewStats.databaseSize) }}</span>
+                <span class="overview-kpi-label">Database size</span>
+              </div>
+              <div class="overview-kpi">
+                <span class="overview-kpi-value">{{ overviewStats.tableCount }}</span>
+                <span class="overview-kpi-label">Tables</span>
+              </div>
+              <div class="overview-kpi">
+                <span class="overview-kpi-value">{{ overviewStats.indexCount }}</span>
+                <span class="overview-kpi-label">Indexes</span>
+              </div>
+            </div>
+          </section>
+          <section class="overview-charts">
+            <h3>Charts</h3>
+            <div class="overview-charts-row">
+              <div class="overview-chart-box">
+                <h4>@if (overviewStats.tablespaces.length > 1) { Tablespace size } @else { Table size distribution }</h4>
+                @if (overviewStats.tablespaces.length > 1) {
+                  <div class="overview-pie-wrap" style="--pie-size: 180px;">
+                    <svg viewBox="0 0 100 100" class="overview-pie">
+                      @for (seg of getPieSegments(overviewStats.tablespaces); track seg.label) {
+                        <path [attr.d]="seg.path" [attr.fill]="seg.color" [title]="seg.label + ': ' + formatBytes(seg.size)" />
+                      }
+                    </svg>
+                    <div class="overview-pie-legend">
+                      @for (seg of getPieSegments(overviewStats.tablespaces); track seg.label) {
+                        <span class="overview-legend-item"><span class="overview-legend-dot" [style.background]="seg.color"></span> {{ seg.label }}</span>
+                      }
+                    </div>
+                  </div>
+                } @else if (overviewStats.topTables.length) {
+                  <div class="overview-pie-wrap" style="--pie-size: 180px;">
+                    <svg viewBox="0 0 100 100" class="overview-pie">
+                      @for (seg of getOverviewTablePieSegments(); track seg.label) {
+                        <path [attr.d]="seg.path" [attr.fill]="seg.color" [title]="seg.label + ': ' + formatBytes(seg.size)" />
+                      }
+                    </svg>
+                    <div class="overview-pie-legend">
+                      @for (seg of getOverviewTablePieSegments(); track seg.label) {
+                        <span class="overview-legend-item"><span class="overview-legend-dot" [style.background]="seg.color"></span> {{ seg.label }}</span>
+                      }
+                    </div>
+                  </div>
+                } @else {
+                  <p class="overview-muted">No data for pie chart.</p>
+                }
+              </div>
+              <div class="overview-chart-box">
+                <h4>Top tables by size (bar)</h4>
+                @if (overviewStats.topTables.length) {
+                  <div class="overview-bar-chart">
+                    @let barMax = getOverviewBarMax(overviewStats.topTables);
+                    @for (t of overviewStats.topTables.slice(0, 10); track t.schemaname + '.' + t.name) {
+                      <div class="overview-bar-row-wrap">
+                        <span class="overview-bar-label" [title]="t.schemaname + '.' + t.name">{{ t.schemaname }}.{{ t.name }}</span>
+                        <div class="overview-bar-track"><div class="overview-bar-fill" [style.width.%]="(t.size / barMax) * 100"></div></div>
+                        <span class="overview-bar-value">{{ formatBytes(t.size) }}</span>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <p class="overview-muted">No tables.</p>
+                }
+              </div>
+            </div>
+          </section>
+          <section class="overview-hit-rates">
+            <h3>Cache &amp; index hit rates</h3>
+            <p class="overview-desc">Higher is better; 99%+ is healthy.</p>
+            <div class="overview-bars">
+              @if (overviewStats.cacheHitRatio != null) {
+                <div class="overview-bar-row">
+                  <span class="overview-bar-label">Buffer cache hit</span>
+                  <div class="overview-bar-track"><div class="overview-bar-fill" [style.width.%]="overviewStats.cacheHitRatio"></div></div>
+                  <span class="overview-bar-pct">{{ overviewStats.cacheHitRatio }}%</span>
+                </div>
+              }
+              @if (overviewStats.tableHitRatio != null) {
+                <div class="overview-bar-row">
+                  <span class="overview-bar-label">Table hit</span>
+                  <div class="overview-bar-track"><div class="overview-bar-fill" [style.width.%]="overviewStats.tableHitRatio"></div></div>
+                  <span class="overview-bar-pct">{{ overviewStats.tableHitRatio }}%</span>
+                </div>
+              }
+              @if (overviewStats.indexHitRatio != null) {
+                <div class="overview-bar-row">
+                  <span class="overview-bar-label">Index hit</span>
+                  <div class="overview-bar-track"><div class="overview-bar-fill" [style.width.%]="overviewStats.indexHitRatio"></div></div>
+                  <span class="overview-bar-pct">{{ overviewStats.indexHitRatio }}%</span>
+                </div>
+              }
+              @if (overviewStats.cacheHitRatio == null && overviewStats.tableHitRatio == null && overviewStats.indexHitRatio == null) {
+                <p class="overview-muted">No hit statistics yet (run some queries to populate).</p>
+              }
+            </div>
+          </section>
+          <section class="overview-tablespaces">
+            <h3>Tablespaces (disk usage)</h3>
+            @if (overviewStats.tablespaces.length) {
+              <table class="overview-table">
+                <thead>
+                  <tr><th>Name</th><th>Size</th></tr>
+                </thead>
+                <tbody>
+                  @for (ts of overviewStats.tablespaces; track ts.name) {
+                    <tr><td>{{ ts.name }}</td><td>{{ formatBytes(ts.size) }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="overview-muted">No tablespaces (using default only).</p>
+            }
+          </section>
+          <section class="overview-top-tables">
+            <h3>Top tables by size</h3>
+            @if (overviewStats.topTables.length) {
+              <table class="overview-table">
+                <thead>
+                  <tr><th>Schema</th><th>Table</th><th>Total size</th></tr>
+                </thead>
+                <tbody>
+                  @for (t of overviewStats.topTables; track t.schemaname + '.' + t.name) {
+                    <tr><td>{{ t.schemaname }}</td><td>{{ t.name }}</td><td>{{ formatBytes(t.size) }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="overview-muted">No user tables.</p>
+            }
+          </section>
+          <section class="overview-top-indexes">
+            <h3>Top indexes by size</h3>
+            @if (overviewStats.topIndexes.length) {
+              <table class="overview-table">
+                <thead>
+                  <tr><th>Schema</th><th>Table</th><th>Index</th><th>Size</th></tr>
+                </thead>
+                <tbody>
+                  @for (idx of overviewStats.topIndexes; track idx.schemaname + '.' + idx.name) {
+                    <tr><td>{{ idx.schemaname }}</td><td>{{ idx.table_name }}</td><td>{{ idx.name }}</td><td>{{ formatBytes(idx.size) }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="overview-muted">No user indexes.</p>
+            }
+          </section>
+        }
+      </div>
+    }
+    @if (isTableTabActive && selectedSchema && selectedTable) {
+      <div class="tab-content table-detail-content">
+        <div class="table-detail-header">
+          <h2 class="table-detail-title">{{ selectedSchema }}.{{ selectedTable }}</h2>
+        </div>
+        <div class="table-detail-subtabs">
+          <button type="button" class="table-detail-subtab" [class.active]="tableDetailSubTab === 'columns'" (click)="tableDetailSubTab = 'columns'">Columns</button>
+          <button type="button" class="table-detail-subtab" [class.active]="tableDetailSubTab === 'indexes'" (click)="tableDetailSubTab = 'indexes'">Indexes</button>
+          <button type="button" class="table-detail-subtab" [class.active]="tableDetailSubTab === 'constraints'" (click)="tableDetailSubTab = 'constraints'">Constraints</button>
+          <button type="button" class="table-detail-subtab" [class.active]="tableDetailSubTab === 'triggers'" (click)="tableDetailSubTab = 'triggers'">Triggers</button>
+          <button type="button" class="table-detail-subtab" [class.active]="tableDetailSubTab === 'data'" (click)="tableDetailSubTab = 'data'">Data</button>
+        </div>
+        @if (tableError) {
+          <div class="table-error">{{ tableError }}</div>
+        }
+        @switch (tableDetailSubTab) {
+          @case ('columns') {
+            <div class="table-detail-section">
+              <table class="schema-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Data type</th>
+                    <th>Primary key</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (col of getTableColumns(selectedSchema, selectedTable); track col.column_name) {
+                    <tr>
+                      <td><span class="col-name">{{ col.column_name }}</span></td>
+                      <td><code class="col-type">{{ col.data_type }}</code></td>
+                      <td>@if (col.is_primary_key) { <span class="badge pk">PK</span> }</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              @if (getTableColumns(selectedSchema, selectedTable).length === 0) {
+                <p class="table-detail-empty">Loading columns…</p>
+              }
+            </div>
+          }
+          @case ('indexes') {
+            <div class="table-detail-section">
+              <table class="schema-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Definition</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (idx of getTableIndexes(selectedSchema, selectedTable); track idx.name) {
+                    <tr>
+                      <td>{{ idx.name }}</td>
+                      <td><code class="definition">{{ idx.definition ?? '—' }}</code></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              @if (getTableIndexes(selectedSchema, selectedTable).length === 0) {
+                <p class="table-detail-empty">No indexes</p>
+              }
+            </div>
+          }
+          @case ('constraints') {
+            <div class="table-detail-section">
+              <table class="schema-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (con of getTableConstraints(selectedSchema, selectedTable); track con.name) {
+                    <tr>
+                      <td>{{ con.name }}</td>
+                      <td><span class="constraint-type">{{ con.type }}</span></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              @if (getTableConstraints(selectedSchema, selectedTable).length === 0) {
+                <p class="table-detail-empty">No constraints</p>
+              }
+            </div>
+          }
+          @case ('triggers') {
+            <div class="table-detail-section">
+              <table class="schema-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Event</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (trg of getTableTriggers(selectedSchema, selectedTable); track trg.name) {
+                    <tr>
+                      <td>{{ trg.name }}</td>
+                      <td>{{ trg.event }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              @if (getTableTriggers(selectedSchema, selectedTable).length === 0) {
+                <p class="table-detail-empty">No triggers</p>
+              }
+            </div>
+          }
+          @case ('data') {
+            <div class="table-detail-section table-detail-data">
+              <div class="toolbar">
+                <span class="pagination">
+                  <button type="button" (click)="prevPage()" [disabled]="tablePage === 0">&#9664;</button>
+                  {{ tablePageStart }}-{{ tablePageEnd }} of {{ tableTotal }}
+                  <button type="button" (click)="nextPage()" [disabled]="(tablePage + 1) * pageSize >= tableTotal">&#9654;</button>
+                </span>
+                @if (tableRows.length > 0) {
+                  <button type="button" class="btn-export-csv" (click)="exportTableDataToCsv()">Export CSV</button>
+                }
+              </div>
+              <div class="grid-wrap">
+                <table class="grid-table">
+                  <thead>
+                    <tr>
+                      @for (col of tableColumns; track col) {
+                        <th>{{ col }}</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of tableRows; track $index) {
+                      <tr>
+                        @for (col of tableColumns; track col) {
+                          <td>{{ getCell(row, col) }}</td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+                @if (tableRows.length === 0 && !tableError) {
+                  <div class="grid-empty">No rows</div>
+                }
+              </div>
+            </div>
+          }
+        }
+      </div>
+    }
+    @if (isQueryActive) {
+      <div class="tab-content query-tab">
+        <div class="query-toolbar">
+          <button type="button" class="btn-query btn-save-load" (click)="openNewQueryTab()" title="New query tab">+ New query</button>
+          <button type="button" class="btn-query btn-run" (click)="runQuery()" [disabled]="queryRunning" title="Run query (Ctrl+Enter). Select text to run only that part.">{{ queryRunning ? 'Running…' : 'Run' }}</button>
+          <button type="button" class="btn-query btn-explain" (click)="runExplain()" [disabled]="explainRunning" title="Explain plan (uses selection if any).">{{ explainRunning ? 'Explaining…' : 'Explain' }}</button>
+          <button type="button" class="btn-query btn-save-load" (click)="saveQuery()" title="Save query to file">Save</button>
+          <button type="button" class="btn-query btn-save-load" (click)="loadQuery()" title="Load query from file">Load</button>
+          @if (queryHistory.length > 0) {
+            <div class="query-history-wrap">
+              <label class="query-history-label">History</label>
+              <select class="query-history-select" (change)="onHistorySelect($any($event.target).value)" title="Previous queries">
+                <option value="">-- select --</option>
+                @for (q of queryHistory; track $index) {
+                  <option [value]="$index">{{ q.length > 60 ? q.slice(0, 57) + '…' : q }}</option>
+                }
+              </select>
+            </div>
+          }
+        </div>
+        <div class="query-editor-wrap" [style.height.px]="queryEditorHeight" (contextmenu)="onEditorContextMenu($event)">
+          <ngx-monaco-editor class="sql-editor" [options]="queryEditorOptions" [(ngModel)]="querySql" (onInit)="onQueryEditorInit($event)"></ngx-monaco-editor>
+        </div>
+        @if (contextMenuOpen) {
+          <div class="query-context-menu" [style.left.px]="contextMenuX" [style.top.px]="contextMenuY" (click)="$event.stopPropagation()">
+            <button type="button" (click)="contextMenuRun()">Run</button>
+            <button type="button" (click)="contextMenuExplain()">Explain</button>
+            <button type="button" (click)="contextMenuCopy()">Copy</button>
+            <button type="button" (click)="contextMenuPaste()">Paste</button>
+            <button type="button" (click)="contextMenuSelectAll()">Select All</button>
+          </div>
+        }
+        <div class="query-panel-splitter" (mousedown)="startQueryPanelResize($event)" title="Drag to resize editor and output" role="separator" aria-orientation="horizontal"></div>
+        <div class="query-output">
+          <div class="query-output-tabs">
+            <button type="button" class="query-output-tab" [class.active]="queryOutputTab === 'results'" (click)="queryOutputTab = 'results'">Results</button>
+            <button type="button" class="query-output-tab" [class.active]="queryOutputTab === 'messages'" (click)="queryOutputTab = 'messages'">Messages</button>
+            <button type="button" class="query-output-tab" [class.active]="queryOutputTab === 'explain'" (click)="queryOutputTab = 'explain'">Explain</button>
+          </div>
+          <div class="query-output-content">
+            @switch (queryOutputTab) {
+              @case ('results') {
+                @if (queryResult && !queryResult.error) {
+                  <div class="query-results-inner">
+                    <div class="query-results-meta">
+                      @if (getQueryFields().length === 0 && (queryResult.rowCount == null || queryResult.rowCount === 0)) {
+                        Command(s) completed@if (queryDurationMs !== null) { in {{ queryDurationMs }} ms }
+                      } @else {
+                        {{ (queryResult && queryResult.rowCount != null ? queryResult.rowCount : getQueryRows().length) }} row(s)@if (queryDurationMs !== null) { in {{ queryDurationMs }} ms }
+                        @if (getQueryFields().length > 0 && getQueryRows().length > 0) {
+                          <button type="button" class="btn-export-csv" (click)="exportQueryResultsToCsv()">Export CSV</button>
+                        }
+                      }
+                    </div>
+                    @if (getQueryFields().length > 0) {
+                      <div class="query-results-grid-wrap">
+                        <table class="grid-table query-grid query-grid-header">
+                          <thead>
+                            <tr>
+                              @for (f of getQueryFields(); track f) {
+                                <th>{{ f }}</th>
+                              }
+                            </tr>
+                          </thead>
+                        </table>
+                        <cdk-virtual-scroll-viewport [itemSize]="queryRowHeight" class="query-results-viewport">
+                          <table class="grid-table query-grid query-grid-body">
+                            <tbody>
+                              <ng-container *cdkVirtualFor="let row of getQueryRows(); let i = index">
+                                <tr>
+                                  @for (f of getQueryFields(); track f) {
+                                    <td>{{ getQueryCell(row, f) }}</td>
+                                  }
+                                </tr>
+                              </ng-container>
+                            </tbody>
+                          </table>
+                        </cdk-virtual-scroll-viewport>
+                      </div>
+                    }
+                  </div>
+                } @else if (queryResult?.error) {
+                  <div class="query-results-inner">
+                    <div class="query-error-inline">{{ formatQueryError(queryResult?.error) }}</div>
+                  </div>
+                } @else {
+                  <div class="query-output-empty">Run a query to see results.</div>
+                }
+              }
+              @case ('messages') {
+                <div class="query-messages">
+                  @if (queryResult?.error) {
+                    <div class="query-error-inline">{{ formatQueryError(queryResult?.error) }}</div>
+                  }
+                  @if (explainResult?.error) {
+                    <div class="query-error-inline">Explain: {{ explainResult?.error }}</div>
+                  }
+                  @if (queryResult && !queryResult.error && !explainResult?.error) {
+                    <div class="query-message-ok">
+                      @if (queryDurationMs !== null) {
+                        @if (getQueryFields().length === 0 && (queryResult.rowCount == null || queryResult.rowCount === 0)) {
+                          <span>Command(s) completed in {{ queryDurationMs }} ms.</span>
+                        } @else {
+                          <span>Query completed in {{ queryDurationMs }} ms. {{ (queryResult && queryResult.rowCount != null ? queryResult.rowCount : getQueryRows().length) }} row(s) returned.</span>
+                        }
+                      } @else {
+                        <span>No messages.</span>
+                      }
+                    </div>
+                  }
+                  @if (!queryResult && !explainResult?.error) {
+                    <div class="query-output-empty">Messages and errors appear here.</div>
+                  }
+                </div>
+              }
+              @case ('explain') {
+                @if (explainResult?.plan) {
+                  <pre class="query-plan-text">{{ explainResult?.plan }}</pre>
+                } @else {
+                  <div class="query-output-empty">Click Explain to see the execution plan.</div>
+                }
+              }
+            }
+          </div>
+        </div>
+      </div>
+    }
+    @if (isErTabActive) {
+      <div class="tab-content er-tab">
+        @if (erLoading) {
+          <div class="er-loading">Loading diagram…</div>
+        } @else if (erError) {
+          <div class="er-error">{{ erError }}</div>
+        } @else {
+          <div class="er-graph-wrap">
+            <ngx-graph
+              class="er-graph"
+              [nodes]="erGraphNodes"
+              [links]="erGraphLinks"
+              [layout]="erLayout"
+              [layoutSettings]="erLayoutSettings"
+              [draggingEnabled]="true"
+              [panningEnabled]="true"
+              [zoomSpeed]="0.2"
+              [autoZoom]="false"
+              [autoCenter]="false"
+              [centerNodesOnPositionChange]="true"
+              [nodeWidth]="220"
+              [nodeMinHeight]="44"
+            >
+              <ng-template #nodeTemplate let-node>
+                <svg:g
+                  class="er-node"
+                  (dblclick)="onErNodeSelect({ node }); $event.stopPropagation()"
+                  (contextmenu)="onErContextMenu($event, node)"
+                >
+                  <svg:rect class="er-node-bg" [attr.width]="node.dimension?.width || 220" [attr.height]="node.dimension?.height || 80" rx="6" ry="6" />
+                  <svg:rect class="er-node-header er-node-header-{{ node.data?.colorIndex ?? 0 }}" [attr.width]="(node.dimension?.width ?? 220) - 2" [attr.height]="26" x="1" y="1" rx="5" ry="5" />
+                  <svg:text class="er-node-title" [attr.x]="10" [attr.y]="18">{{ node.label }}</svg:text>
+                  @if (node.data?.columns?.length) {
+                    @for (col of node.data.columns; track col.name; let i = $index) {
+                      <svg:g class="er-node-row" [attr.transform]="'translate(0,' + (28 + i * 16) + ')'">
+                        <svg:rect class="er-node-col-bg" [attr.width]="(node.dimension?.width ?? 220) - 2" height="15" x="1" [class.er-col-pk]="col.isPk" [class.er-col-fk]="col.isFk && !col.isPk" />
+                        @if (col.isPk) {
+                          <svg:g class="er-icon-pk" transform="translate(8, 2)">
+                            <svg:path d="M2 4 L2 10 L4 10 L4 6 L8 6 L8 10 L10 10 L10 4 L8 4 L8 2 L4 2 L4 4 Z" />
+                          </svg:g>
+                        }
+                        @if (col.isFk && !col.isPk) {
+                          <svg:g class="er-icon-fk" transform="translate(8, 2)">
+                            <svg:path d="M1 5 L5 1 L9 5 L7 5 L7 9 L3 9 L3 5 Z" />
+                          </svg:g>
+                        }
+                        <svg:text class="er-node-col" [attr.x]="col.isPk || col.isFk ? 26 : 10" [attr.y]="12">
+                          {{ col.name }}: {{ col.type }}
+                        </svg:text>
+                      </svg:g>
+                    }
+                  }
+                </svg:g>
+              </ng-template>
+              <ng-template #linkTemplate let-link>
+                <svg:g class="er-link" [attr.data-color]="link.data?.color">
+                  <svg:path class="line" stroke-width="2" marker-end="url(#arrow-er)"></svg:path>
+                </svg:g>
+              </ng-template>
+              <ng-template #defsTemplate>
+                <svg:marker id="arrow-er" viewBox="0 -5 10 10" refX="8" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+                  <svg:path d="M0,-5L10,0L0,5" class="arrow-fill" />
+                </svg:marker>
+              </ng-template>
+            </ngx-graph>
+          </div>
+        }
+      </div>
+    }
+  </div>
+  @if (createDbWizardOpen) {
+    <div class="wizard-backdrop" (click)="closeCreateDbWizard()"></div>
+    <div class="wizard-modal wizard-modal-lg create-db-wizard" (click)="$event.stopPropagation()">
+      <div class="wizard-header">
+        <h3>Create database</h3>
+        <button type="button" class="wizard-close" (click)="closeCreateDbWizard()">×</button>
+      </div>
+      <div class="wizard-body">
+        <div class="wizard-form">
+          <label>Database name <span class="wizard-required">*</span></label>
+          <input type="text" class="wizard-input" [(ngModel)]="createDbName" placeholder="my_database" />
+          <label>Owner</label>
+          <select class="wizard-select" [(ngModel)]="createDbOwner">
+            <option value="">— default —</option>
+            @for (role of rolesList; track role) {
+              <option [value]="role">{{ role }}</option>
+            }
+          </select>
+          <label>Comment</label>
+          <textarea class="wizard-input wizard-textarea" [(ngModel)]="createDbComment" placeholder="Optional description" rows="3"></textarea>
+          @if (createDbError) {
+            <div class="wizard-error">{{ createDbError }}</div>
+          }
+        </div>
+      </div>
+      <div class="wizard-footer">
+        <button type="button" class="wizard-btn-secondary" (click)="closeCreateDbWizard()">Cancel</button>
+        <button type="button" class="wizard-btn-primary" (click)="runCreateDatabase()" [disabled]="createDbRunning || !createDbName.trim()">{{ createDbRunning ? 'Creating…' : 'Create database' }}</button>
+      </div>
+    </div>
+  }
+  @if (createTableWizardOpen) {
+    <div class="wizard-backdrop" (click)="closeCreateTableWizard()"></div>
+    <div class="wizard-modal wizard-modal-lg create-table-wizard" (click)="$event.stopPropagation()">
+      <div class="wizard-header">
+        <h3>Create table</h3>
+        <button type="button" class="wizard-close" (click)="closeCreateTableWizard()">×</button>
+      </div>
+      <div class="wizard-steps">
+        <button type="button" class="wizard-step" [class.active]="createTableWizardStep === 1" (click)="createTableWizardStep = 1">1. General</button>
+        <button type="button" class="wizard-step" [class.active]="createTableWizardStep === 2" (click)="createTableWizardStep = 2">2. Columns</button>
+        <button type="button" class="wizard-step" [class.active]="createTableWizardStep === 3" (click)="createTableWizardStep = 3">3. Review</button>
+      </div>
+      <div class="wizard-body">
+        @if (createTableWizardStep === 1) {
+          <div class="wizard-form">
+            <label>Schema <span class="wizard-required">*</span></label>
+            <input type="text" class="wizard-input" [(ngModel)]="createTableSchema" placeholder="public" />
+            <label>Table name <span class="wizard-required">*</span></label>
+            <input type="text" class="wizard-input" [(ngModel)]="createTableName" placeholder="my_table" />
+            <label>Tablespace</label>
+            <select class="wizard-select" [(ngModel)]="createTableTablespace">
+              <option value="">— default —</option>
+              @for (tbl of tablespacesList; track tbl) {
+                <option [value]="tbl">{{ tbl }}</option>
+              }
+            </select>
+            <label>Comment</label>
+            <textarea class="wizard-input wizard-textarea" [(ngModel)]="createTableComment" placeholder="Optional table description" rows="2"></textarea>
+          </div>
+        }
+        @if (createTableWizardStep === 2) {
+          <div class="wizard-form wizard-columns">
+            <table class="wizard-columns-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Length/Precision</th>
+                  <th>Nullable</th>
+                  <th>Default</th>
+                  <th>PK</th>
+                  <th>Unique</th>
+                  <th>Comment</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (col of createTableColumns; track $index) {
+                  <tr>
+                    <td><input type="text" class="wizard-input sm" [(ngModel)]="col.name" placeholder="column_name" /></td>
+                    <td>
+                      <select class="wizard-select" [(ngModel)]="col.type">
+                        @for (opt of createTableTypeOptions; track opt) {
+                          <option [value]="opt">{{ opt }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td><input type="text" class="wizard-input xs" [(ngModel)]="col.length" placeholder="e.g. 255" /></td>
+                    <td><input type="checkbox" [(ngModel)]="col.nullable" title="Nullable" /></td>
+                    <td><input type="text" class="wizard-input sm" [(ngModel)]="col.default" placeholder="optional" /></td>
+                    <td><input type="checkbox" [(ngModel)]="col.primaryKey" title="Primary key" /></td>
+                    <td><input type="checkbox" [(ngModel)]="col.unique" title="Unique" /></td>
+                    <td><input type="text" class="wizard-input sm" [(ngModel)]="col.comment" placeholder="optional" /></td>
+                    <td><button type="button" class="wizard-btn-icon" (click)="removeCreateTableColumn($index)" [disabled]="createTableColumns.length <= 1">−</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <button type="button" class="wizard-btn-secondary" (click)="addCreateTableColumn()">+ Add column</button>
+          </div>
+        }
+        @if (createTableWizardStep === 3) {
+          <div class="wizard-form">
+            <label>DDL preview</label>
+            <pre class="wizard-ddl">{{ getCreateTableDdl() || '—' }}</pre>
+            @if (getCreateTableCommentSql()) {
+              <label>Comment</label>
+              <pre class="wizard-ddl">{{ getCreateTableCommentSql() }}</pre>
+            }
+            @if (createTableError) {
+              <div class="wizard-error">{{ createTableError }}</div>
+            }
+          </div>
+        }
+      </div>
+      <div class="wizard-footer">
+        @if (createTableWizardStep > 1) {
+          <button type="button" class="wizard-btn-secondary" (click)="createTableWizardStep = createTableWizardStep - 1">Back</button>
+        }
+        @if (createTableWizardStep < 3) {
+          <button type="button" class="wizard-btn-primary" (click)="createTableWizardStep = createTableWizardStep + 1">Next</button>
+        } @else {
+          <button type="button" class="wizard-btn-primary" (click)="runCreateTable()" [disabled]="createTableRunning">{{ createTableRunning ? 'Creating…' : 'Create table' }}</button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Export table wizard (DBeaver-style) -->
+  @if (exportWizardOpen && exportTarget) {
+    <div class="wizard-backdrop" (click)="closeExportWizard()"></div>
+    <div class="wizard-modal wizard-modal-lg io-wizard export-wizard" (click)="$event.stopPropagation()">
+      <div class="wizard-header">
+        <h3>Export table — {{ exportTarget.schema }}.{{ exportTarget.table }}</h3>
+        <button type="button" class="wizard-close" (click)="closeExportWizard()">×</button>
+      </div>
+      <div class="io-wizard-steps">
+        <button type="button" class="io-step" [class.active]="exportWizardStep === 1" [class.done]="exportWizardStep > 1" (click)="exportWizardStep = 1">1. Format</button>
+        <span class="io-step-sep"></span>
+        <button type="button" class="io-step" [class.active]="exportWizardStep === 2" [class.done]="exportWizardStep > 2" (click)="exportWizardStep = 2">2. Options</button>
+        <span class="io-step-sep"></span>
+        <button type="button" class="io-step" [class.active]="exportWizardStep === 3" (click)="exportWizardStep = 3">3. Export</button>
+      </div>
+      <div class="wizard-body">
+        @if (exportWizardStep === 1) {
+          <p class="io-wizard-desc">Choose the export format.</p>
+          <div class="io-format-grid">
+            @for (f of exportFormats; track f.id) {
+              <button type="button" class="io-format-card" [class.selected]="exportFormat === f.id" (click)="exportFormat = f.id">
+                <span class="io-format-label">{{ f.label }}</span>
+                <span class="io-format-desc">{{ f.desc }}</span>
+              </button>
+            }
+          </div>
+        }
+        @if (exportWizardStep === 2) {
+          <p class="io-wizard-desc">Format and column options.</p>
+          <div class="wizard-form io-options-form">
+            @if (exportFormat === 'csv' || exportFormat === 'text') {
+              <label>Delimiter</label>
+              <input type="text" class="wizard-input" [(ngModel)]="exportOptions.delimiter" placeholder="{{ exportFormat === 'text' ? 'Tab' : ',' }}" maxlength="2" />
+              <label class="io-check">
+                <input type="checkbox" [(ngModel)]="exportOptions.header" /> Include header row
+              </label>
+              @if (exportFormat === 'csv') {
+                <label>Quote character</label>
+                <input type="text" class="wizard-input xs" [(ngModel)]="exportOptions.quote" placeholder='"' maxlength="1" />
+                <label>NULL string</label>
+                <input type="text" class="wizard-input" [(ngModel)]="exportOptions.nullString" placeholder="\N" />
+              }
+            }
+            <label>Columns (leave empty for all)</label>
+            <div class="io-column-list">
+              @for (col of getExportWizardColumns(); track col.column_name) {
+                <label class="io-check">
+                  <input type="checkbox" [checked]="exportSelectedColumns.length === 0 || exportSelectedColumns.includes(col.column_name)" (change)="toggleExportColumn(col.column_name)" />
+                  {{ col.column_name }} <span class="io-type">({{ col.data_type }})</span>
+                </label>
+              }
+              @if (getExportWizardColumns().length === 0) {
+                <span class="io-muted">Load schema to see columns.</span>
+              }
+            </div>
+          </div>
+        }
+        @if (exportWizardStep === 3) {
+          <p class="io-wizard-desc">Click Export to choose the file location and run the export.</p>
+          <div class="io-summary">
+            <p><strong>Format:</strong> {{ getExportFormatLabel() }}</p>
+            <p><strong>Target:</strong> {{ exportTarget.schema }}.{{ exportTarget.table }}</p>
+          </div>
+          @if (exportError) {
+            <div class="wizard-error">{{ exportError }}</div>
+          }
+          @if (exportRunning) {
+            <p class="io-running">Exporting…</p>
+          }
+        }
+      </div>
+      <div class="wizard-footer">
+        @if (exportWizardStep > 1) {
+          <button type="button" class="wizard-btn-secondary" (click)="exportWizardBack()">Back</button>
+        }
+        @if (exportWizardStep < 3) {
+          <button type="button" class="wizard-btn-primary" (click)="exportWizardNext()">Next</button>
+        } @else {
+          <button type="button" class="wizard-btn-primary" (click)="runExport()" [disabled]="exportRunning">{{ exportRunning ? 'Exporting…' : 'Export' }}</button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Import table wizard -->
+  @if (importWizardOpen && importTarget) {
+    <div class="wizard-backdrop" (click)="closeImportWizard()"></div>
+    <div class="wizard-modal wizard-modal-lg io-wizard import-wizard" (click)="$event.stopPropagation()">
+      <div class="wizard-header">
+        <h3>Import into table — {{ importTarget.schema }}.{{ importTarget.table }}</h3>
+        <button type="button" class="wizard-close" (click)="closeImportWizard()">×</button>
+      </div>
+      <div class="io-wizard-steps">
+        <button type="button" class="io-step" [class.active]="importWizardStep === 1" [class.done]="importWizardStep > 1" (click)="importWizardStep = 1">1. Format</button>
+        <span class="io-step-sep"></span>
+        <button type="button" class="io-step" [class.active]="importWizardStep === 2" [class.done]="importWizardStep > 2" (click)="importWizardStep = 2">2. Options</button>
+        <span class="io-step-sep"></span>
+        <button type="button" class="io-step" [class.active]="importWizardStep === 3" (click)="importWizardStep = 3">3. Import</button>
+      </div>
+      <div class="wizard-body">
+        @if (importWizardStep === 1) {
+          <p class="io-wizard-desc">Choose the import format.</p>
+          <div class="io-format-grid">
+            @for (f of importFormats; track f.id) {
+              <button type="button" class="io-format-card" [class.selected]="importFormat === f.id" (click)="importFormat = f.id">
+                <span class="io-format-label">{{ f.label }}</span>
+                <span class="io-format-desc">{{ f.desc }}</span>
+              </button>
+            }
+          </div>
+        }
+        @if (importWizardStep === 2) {
+          <p class="io-wizard-desc">Format options. File will be selected when you click Import.</p>
+          <div class="wizard-form io-options-form">
+            @if (importFormat === 'csv' || importFormat === 'text') {
+              <label>Delimiter</label>
+              <input type="text" class="wizard-input" [(ngModel)]="importOptions.delimiter" placeholder="{{ importFormat === 'text' ? 'Tab' : ',' }}" maxlength="2" />
+              <label class="io-check">
+                <input type="checkbox" [(ngModel)]="importOptions.header" /> First row is header
+              </label>
+              <label>NULL string</label>
+              <input type="text" class="wizard-input" [(ngModel)]="importOptions.nullString" placeholder="\N" />
+            }
+            <label>Columns (optional — leave empty to use file columns)</label>
+            <div class="io-column-list">
+              @for (col of getImportWizardColumns(); track col.column_name) {
+                <label class="io-check">
+                  <input type="checkbox" [checked]="importSelectedColumns.length === 0 || importSelectedColumns.includes(col.column_name)" (change)="toggleImportColumn(col.column_name)" />
+                  {{ col.column_name }} <span class="io-type">({{ col.data_type }})</span>
+                </label>
+              }
+            </div>
+          </div>
+        }
+        @if (importWizardStep === 3) {
+          <p class="io-wizard-desc">Click Import to choose the file. New rows will be appended.</p>
+          <div class="io-summary">
+            <p><strong>Format:</strong> {{ getImportFormatLabel() }}</p>
+            <p><strong>Target:</strong> {{ importTarget.schema }}.{{ importTarget.table }}</p>
+          </div>
+          @if (importError) {
+            <div class="wizard-error">{{ importError }}</div>
+          }
+          @if (importRunning) {
+            <p class="io-running">Importing…</p>
+          }
+        }
+      </div>
+      <div class="wizard-footer">
+        @if (importWizardStep > 1) {
+          <button type="button" class="wizard-btn-secondary" (click)="importWizardBack()">Back</button>
+        }
+        @if (importWizardStep < 3) {
+          <button type="button" class="wizard-btn-primary" (click)="importWizardNext()">Next</button>
+        } @else {
+          <button type="button" class="wizard-btn-primary" (click)="runImport()" [disabled]="importRunning">{{ importRunning ? 'Importing…' : 'Import' }}</button>
+        }
+      </div>
+    </div>
+  }
+</div>

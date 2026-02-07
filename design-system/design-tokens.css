@@ -79,24 +79,24 @@
   --color-warning-rgb: 168, 75, 47;
   --color-info-rgb: 98, 108, 113;
 
-  /* Typography */
-  --font-family-base: "FKGroteskNeue", "Geist", "Inter", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
+  /* Typography — Inter-first (GitButler-style in-app UI), slightly larger scale */
+  --font-family-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
     Monaco, Consolas, monospace;
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-base: 14px;
-  --font-size-md: 14px;
-  --font-size-lg: 16px;
-  --font-size-xl: 18px;
-  --font-size-2xl: 20px;
-  --font-size-3xl: 24px;
-  --font-size-4xl: 30px;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-md: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 19px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 26px;
+  --font-size-4xl: 32px;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
-  --font-weight-semibold: 550;
-  --font-weight-bold: 600;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
   --line-height-tight: 1.2;
   --line-height-normal: 1.5;
   --letter-spacing-tight: -0.01em;
@@ -291,16 +291,19 @@
 html {
   font-size: var(--font-size-base);
   font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
   line-height: var(--line-height-normal);
   color: var(--color-text);
   background-color: var(--color-background);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
   padding: 0;
+  font-weight: var(--font-weight-medium);
 }
 
 *,
@@ -454,6 +457,15 @@ pre code {
   width: 100%;
 }
 
+.btn--danger {
+  background: var(--color-error);
+  color: var(--color-white);
+}
+
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(0.9);
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -507,9 +519,25 @@ select.form-control {
   background-image: var(--select-caret-light);
 }
 
-.form-control:focus {
+.form-control:focus,
+.form-control:focus-visible,
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
   border-color: var(--color-primary);
-  outline: var(--focus-outline);
+  outline: none;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.form-control:active,
+input:active,
+textarea:active,
+select:active {
+  box-shadow: none;
 }
 
 .form-label {

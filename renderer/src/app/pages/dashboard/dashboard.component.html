@@ -1,0 +1,68 @@
+<div class="dashboard">
+  <div class="dashboard-grid">
+    <section class="card">
+      <h2 class="card-title">Services</h2>
+      <div class="service-row">
+        <div class="service-info">
+          <strong>PostgreSQL</strong>
+          <span class="badge" [class.badge-running]="pgStatus === 'running'" [class.badge-stopped]="pgStatus === 'stopped'">
+            {{ pgStatus === 'running' ? 'Running' : 'Stopped' }}
+          </span>
+        </div>
+        <div class="service-actions">
+          <input type="number" [(ngModel)]="pgPort" (blur)="saveConnectionSettings()" class="port-input" placeholder="5432" min="1" max="65535" />
+          <button type="button" class="btn btn-primary" (click)="togglePostgres()">
+            {{ pgStatus === 'running' ? 'Stop' : 'Start' }}
+          </button>
+        </div>
+      </div>
+      <div class="service-fields">
+        <div class="field-row">
+          <label>Username</label>
+          <input type="text" [(ngModel)]="pgUser" class="input-sm input-readonly" placeholder="postgres" readonly />
+        </div>
+        <div class="field-row">
+          <label>Password</label>
+          <div class="password-wrap">
+            <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="pgPassword" (blur)="saveConnectionSettings()" class="input-sm" placeholder="postgres" />
+            <button type="button" class="btn-password-toggle" (click)="showPassword = !showPassword" [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'" [title]="showPassword ? 'Hide password' : 'Show password'">
+              {{ showPassword ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+        </div>
+      </div>
+      @if (error) {
+        <p class="error-msg">{{ error }}</p>
+      }
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Connection details</h2>
+      <p class="card-desc">Use these to connect from external tools.</p>
+      <div class="conn-block">
+        <div class="conn-grid">
+          <span class="conn-label">Host</span><span>localhost</span>
+          <span class="conn-label">Port</span><span>{{ pgPort }}</span>
+          <span class="conn-label">User</span><span>{{ pgUser || 'postgres' }}</span>
+          <span class="conn-label">Password</span><span>{{ pgPassword ? '••••••••' : '(empty)' }}</span>
+          <span class="conn-label">Database</span><span>postgres</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card card-logs">
+    <div class="card-title-row">
+      <h2 class="card-title">System logs</h2>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="clearLogs()">Clear</button>
+    </div>
+    <div class="logs">
+      @for (line of logs; track $index) {
+        <div class="log-line">{{ line }}</div>
+      }
+      @if (logs.length === 0) {
+        <div class="log-line log-placeholder">No logs yet. Start PostgreSQL to see output.</div>
+      }
+    </div>
+  </section>
+</div>

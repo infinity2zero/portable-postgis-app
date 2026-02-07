@@ -1,0 +1,14 @@
+<div class="app">
+  <app-title-bar />
+  <div class="main">
+    @if (showMainLayout) {
+      <app-activity-bar />
+    }
+    <main class="content" [class.content-fullscreen]="!showMainLayout" role="main">
+      <router-outlet />
+    </main>
+  </div>
+  @if (showMainLayout) {
+    <app-status-bar />
+  }
+</div>

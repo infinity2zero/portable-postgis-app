@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .main { flex: 1; overflow: auto; padding: 24px; background: #f5f5f5; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+    .card h2 { margin: 0 0 16px 0; font-size: 16px; color: #1e1e1e; }
+    .service-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+    .service-row:last-child { border-bottom: none; }
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .badge-running { background: #d4edda; color: #155724; }
+    .badge-stopped { background: #f8d7da; color: #721c24; }
+    .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+    .btn-primary { background: #007acc; color: #fff; border-color: #007acc; }
+    .logs { font-family: monospace; font-size: 11px; background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 4px; max-height: 200px; overflow: auto; }
+    .logs .line { margin: 2px 0; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="title-bar">
+      <span class="logo">Portable PostGIS</span>
+      <nav>
+        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="layout-d.html">Database</a>
+      </nav>
+      <span class="spacer"></span>
+      <a href="settings.html">Settings</a>
+      <span class="win-btns">— □ ×</span>
+    </header>
+
+    <div class="main">
+      <div class="card">
+        <h2>Services</h2>
+        <div class="service-row">
+          <div>
+            <strong>PostgreSQL</strong>
+            <span class="badge badge-running" style="margin-left:10px;">RUNNING</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <input type="number" value="5432" style="width:70px; padding:6px;" />
+            <button class="btn btn-primary">Stop</button>
+          </div>
+        </div>
+        <div class="service-row">
+          <div><strong>Port</strong> <span style="color:#666;">5432</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Connection details</h2>
+        <p style="margin:0 0 12px 0; color:#555;">Use these to connect from external tools.</p>
+        <table class="grid-table" style="max-width:400px;">
+          <tr><td><strong>Host</strong></td><td>localhost</td></tr>
+          <tr><td><strong>Port</strong></td><td>5432</td></tr>
+          <tr><td><strong>User</strong></td><td>postgres</td></tr>
+          <tr><td><strong>Password</strong></td><td>postgres</td></tr>
+          <tr><td><strong>Database</strong></td><td>postgres</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>System logs</h2>
+        <div class="logs">
+          <div class="line">[postgres] Database "postgres" already exists.</div>
+          <div class="line">[postgres] Using PGSHARE: .../share</div>
+          <div class="line">[postgres] PostGIS extension enabled successfully.</div>
+          <div class="line">[postgres] pgRouting extension already enabled.</div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <span>PostgreSQL running on 5432</span>
+      <span>Ready</span>
+    </footer>
+  </div>
+</body>
+</html>

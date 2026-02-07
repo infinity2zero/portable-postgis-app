@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout B with activity bar (Database tab)</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .main { display: flex; flex: 1; min-height: 0; }
+    .activity-bar {
+      width: 48px; background: #333; color: #ccc; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 4px;
+    }
+    .activity-bar .icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-left: 3px solid transparent; text-decoration: none; color: inherit; }
+    .activity-bar .icon:hover { color: #fff; }
+    .activity-bar .icon.active { color: #fff; border-left-color: #007acc; background: #252526; }
+    .sidebar { width: 220px; min-width: 160px; flex-shrink: 0; }
+    .editor-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .editor-wrap .tabs { flex-shrink: 0; }
+    .editor-wrap .tab-content { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; }
+    .editor-wrap .tab-content:not(.active) { display: none; }
+    .editor-wrap .tab-content .toolbar { margin: -12px -12px 12px -12px; }
+    .editor-placeholder { min-height: 80px; background: #fafafa; padding: 12px; border: 1px solid #eee; font-family: monospace; font-size: 13px; white-space: pre; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="title-bar">
+      <span class="logo">Portable PostGIS</span>
+      <span style="margin-left:12px; color:#888;">Database</span>
+      <span class="spacer"></span>
+      <a href="settings.html">Settings</a>
+      <span class="win-btns">— □ ×</span>
+    </header>
+
+    <div class="main">
+      <nav class="activity-bar">
+        <a href="dashboard.html" class="icon" title="Dashboard">⌂</a>
+        <a href="layout-b-activity.html" class="icon active" title="Database">▦</a>
+        <a href="settings.html" class="icon" title="Settings">⚙</a>
+      </nav>
+
+      <aside class="sidebar">
+        <div style="font-weight:600; margin-bottom:8px; padding:4px 8px;">DATABASE</div>
+        <ul class="tree">
+          <li class="folder">▸ postgres</li>
+          <li class="folder">▾ public</li>
+          <li class="active">  users</li>
+          <li>  orders</li>
+          <li>  products</li>
+        </ul>
+        <button class="toolbar" style="margin-top:12px; width:100%;">Refresh</button>
+      </aside>
+
+      <div class="editor-wrap">
+        <div class="tabs">
+          <span class="tab active">Table "public.users"</span>
+          <span class="tab">Query 1</span>
+          <span class="tab">Query 2</span>
+          <span class="tab">+</span>
+        </div>
+        <div class="tab-content active">
+          <div class="toolbar">
+            <button>Filter</button>
+            <button>Columns</button>
+            <button>Export</button>
+            <span style="margin-left:auto;">&lt; 1 2 3 ... 10 &gt;  Page 100</span>
+          </div>
+          <table class="grid-table">
+            <thead><tr><th>id</th><th>name</th><th>email</th><th>created_at</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Alice</td><td>a@x.com</td><td>2024-01-01</td></tr>
+              <tr><td>2</td><td>Bob</td><td>b@x.com</td><td>2024-01-02</td></tr>
+              <tr><td>3</td><td>Carol</td><td>c@x.com</td><td>2024-01-03</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tab-content">
+          <div class="toolbar">
+            <button>Run</button>
+            <button>Explain</button>
+            <button>History</button>
+          </div>
+          <pre class="editor-placeholder">SELECT * FROM public.users WHERE ...</pre>
+          <div style="margin-top:12px; font-size:12px; color:#666;">Results: 42 rows</div>
+          <table class="grid-table">
+            <thead><tr><th>col1</th><th>col2</th></tr></thead>
+            <tbody><tr><td>...</td><td>...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <span>Connected • postgres@localhost:5432</span>
+      <span>Rows 1–100 of 1,234</span>
+      <span>Ready</span>
+    </footer>
+  </div>
+</body>
+</html>

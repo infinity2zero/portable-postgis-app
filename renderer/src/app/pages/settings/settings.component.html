@@ -1,0 +1,57 @@
+<div class="settings">
+  <h1 class="settings-title">Settings</h1>
+  <div class="settings-grid">
+    <section class="card">
+      <h2 class="card-title">Database connection</h2>
+      <p class="card-desc">Used by the built-in database browser, backup/restore, and external tools. Restart PostgreSQL (or the app) for port changes to take effect.</p>
+      <div class="form-group">
+        <div class="form-row">
+          <label for="settings-pg-port">PostgreSQL port</label>
+          <input id="settings-pg-port" type="number" [(ngModel)]="dbPort" min="1" max="65535" class="input input-port" placeholder="5432" />
+        </div>
+        <div class="form-row">
+          <label for="settings-pg-user">Username</label>
+          <input id="settings-pg-user" type="text" [(ngModel)]="dbUser" class="input input-text input-readonly" placeholder="postgres" readonly />
+          <span class="hint-inline">Fixed to postgres for now.</span>
+        </div>
+        <div class="form-row">
+          <label for="settings-pg-password">Password</label>
+          <div class="password-wrap">
+            <input id="settings-pg-password" [type]="showPassword ? 'text' : 'password'" [(ngModel)]="dbPassword" class="input input-text" placeholder="postgres" />
+            <button type="button" class="btn-password-toggle" (click)="showPassword = !showPassword" [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'">
+              {{ showPassword ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+        </div>
+      </div>
+      @if (connectionError) {
+        <p class="settings-error">{{ connectionError }}</p>
+      }
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary" (click)="saveConnectionSettings()">
+          {{ connectionSaved ? 'Saved' : 'Save' }}
+        </button>
+      </div>
+      <p class="hint">Host is always localhost. These values are stored locally and used when connecting to the bundled PostgreSQL.</p>
+    </section>
+    <section class="card">
+      <h2 class="card-title">Welcome guide</h2>
+      <p class="card-desc">Show the getting-started steps again (PostgreSQL, connection details, Database tab).</p>
+      <button type="button" class="btn btn-secondary" (click)="showOnboardingAgain()">Show welcome guide again</button>
+    </section>
+    <section class="card">
+      <h2 class="card-title">Appearance</h2>
+      <p class="card-desc">Choose how the app looks. System follows your OS setting.</p>
+      <div class="theme-options">
+        <button type="button" class="theme-btn" [class.active]="activeTheme === 'light'" (click)="setTheme('light')">Light</button>
+        <button type="button" class="theme-btn" [class.active]="activeTheme === 'dark'" (click)="setTheme('dark')">Dark</button>
+        <button type="button" class="theme-btn" [class.active]="activeTheme === 'auto'" (click)="setTheme('auto')">System</button>
+      </div>
+    </section>
+    <section class="card card-danger">
+      <h2 class="card-title">Danger zone</h2>
+      <p>Wipe all database and app data, then restart. This cannot be undone.</p>
+      <button type="button" class="btn btn-danger" (click)="wipeData()">Wipe data &amp; reset</button>
+    </section>
+  </div>
+</div>

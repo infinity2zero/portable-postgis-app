@@ -1,0 +1,93 @@
+:host {
+  display: flex;
+  min-height: 0;
+  min-width: 36px;
+}
+
+.activity-bar {
+  width: 45px;
+  min-width: 45px;
+  height: 100%;
+  min-height: 0;
+  color: var(--activity-sidebar-text);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-6);
+  gap: var(--space-1);
+  border-right: 1px solid var(--activity-sidebar-border);
+  background: var(--activity-sidebar-bg);
+}
+
+.dock-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.dock-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Compact GitButler-style: small hit area, no shadow anywhere */
+.dock-item {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 6px;
+  transition: background-color var(--duration-fast);
+  flex-shrink: 0;
+  outline: none;
+  border: none;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Override global focus/active styles: no outline, no box-shadow */
+.activity-bar .dock-item:hover,
+.activity-bar .dock-item:focus,
+.activity-bar .dock-item:focus-visible,
+.activity-bar .dock-item:active {
+  outline: none;
+  box-shadow: none;
+}
+
+.dock-item:hover {
+  background: var(--activity-sidebar-hover-bg);
+}
+
+.dock-item.active {
+  color: var(--activity-sidebar-active-border);
+  background: var(--activity-sidebar-active-bg);
+}
+
+.dock-icon {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+  pointer-events: none;
+  opacity: 0.9;
+  transition: opacity var(--duration-fast);
+}
+
+.dock-item:hover .dock-icon,
+.dock-item.active .dock-icon {
+  opacity: 1;
+}
+
+/* Dark theme: invert so black icons become light */
+:host-context([data-theme='dark']) .dock-icon {
+  filter: invert(1) brightness(0.95);
+}

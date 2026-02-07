@@ -1,12 +1,11 @@
 {
     "name": "portable-postgis-app",
     "version": "1.0.23",
-    "description": "Portable App bundling PostgreSQL, PostGIS, and pgAdmin",
+    "description": "Portable App bundling PostgreSQL and PostGIS with a built-in database browser",
     "keywords": [
         "portable",
         "postgresql",
         "postgis",
-        "pgadmin",
         "database",
         "gis",
         "spatial",
@@ -19,10 +18,14 @@
     "main": "main.js",
     "scripts": {
         "start": "electron .",
+        "dev": "concurrently -k -n ng,electron -c blue,green \"npm run dev:renderer\" \"npm run dev:electron\"",
+        "dev:renderer": "cd renderer && npx ng serve",
+        "dev:electron": "wait-on http://localhost:4200 -t 60000 && cross-env ELECTRON_LOAD_ANGULAR_DEV=1 electron .",
         "setup": "node scripts/setup-resources.js",
-        "build": "electron-builder",
-        "build:win": "node scripts/setup-resources.js --target=win && electron-builder --win",
-        "build:mac": "node scripts/setup-resources.js --target=mac && electron-builder --mac",
+        "build:renderer": "cd renderer && npm run build",
+        "build": "npm run build:renderer && electron-builder",
+        "build:win": "node scripts/setup-resources.js --target=win && npm run build:renderer && electron-builder --win",
+        "build:mac": "node scripts/setup-resources.js --target=mac && npm run build:renderer && electron-builder --mac",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "build": {
@@ -61,6 +64,13 @@
                 "zip"
             ]
         },
+        "linux": {
+            "target": [
+                "AppImage",
+                "zip"
+            ],
+            "category": "Development"
+        },
         "win": {
             "target": [
                 "nsis",
@@ -86,14 +96,19 @@
         "url": "https://github.com/infinity2zero/portable-postgis-app.git"
     },
     "dependencies": {
-        "fs-extra": "^11.2.0"
+        "fs-extra": "^11.2.0",
+        "pg": "^8.11.3",
+        "pg-copy-streams": "^6.0.0"
     },
     "devDependencies": {
         "adm-zip": "^0.5.10",
+        "concurrently": "^8.2.2",
+        "cross-env": "^7.0.3",
         "electron": "^28.0.0",
         "electron-builder": "^24.9.1",
         "electron-reload": "^2.0.0-alpha.1",
         "node-fetch": "^2.6.7",
-        "tar": "^6.2.0"
+        "tar": "^6.2.0",
+        "wait-on": "^7.2.0"
     }
 }

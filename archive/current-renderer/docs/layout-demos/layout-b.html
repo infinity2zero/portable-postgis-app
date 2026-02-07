@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout B – Left Explorer, Bottom SQL</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .main { display: flex; flex: 1; min-height: 0; }
+    .sidebar { width: 240px; min-width: 160px; flex-shrink: 0; }
+    .right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .top-pane { flex: 0 0 45%; min-height: 120px; display: flex; flex-direction: column; border-bottom: 1px solid #ccc; }
+    .bottom-pane { flex: 1; min-height: 120px; display: flex; flex-direction: column; }
+    .pane-content { flex: 1; overflow: auto; padding: 12px; }
+    .editor-placeholder { min-height: 80px; background: #fafafa; padding: 12px; border: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="title-bar">
+      <span class="logo">Portable PostGIS</span>
+      <nav>
+        <a href="index.html">Dashboard</a>
+        <a href="layout-b.html" class="active">Database</a>
+      </nav>
+      <span class="spacer"></span>
+      <a href="#">Settings</a>
+      <span class="win-btns">— □ ×</span>
+    </header>
+
+    <div class="main">
+      <aside class="sidebar">
+        <div style="font-weight:600; margin-bottom:8px;">Schema Explorer</div>
+        <ul class="tree">
+          <li class="folder">▸ postgres</li>
+          <li class="folder">▾ public</li>
+          <li class="active">  users</li>
+          <li>  orders</li>
+          <li>  products</li>
+        </ul>
+        <button class="toolbar" style="margin-top:12px; width:100%;">Refresh</button>
+      </aside>
+
+      <div class="right">
+        <div class="top-pane">
+          <div class="tabs" style="flex-shrink:0;">
+            <span class="tab active">Query 1</span>
+            <span class="tab">Query 2</span>
+            <span class="tab">+</span>
+            <span class="spacer"></span>
+            <button>Run</button>
+            <button>Explain</button>
+            <button>History</button>
+          </div>
+          <div class="pane-content">
+            <pre class="editor-placeholder">SELECT * FROM public.users WHERE ...</pre>
+            <div style="margin-top:12px; font-size:12px; color:#666;">Results: 42 rows</div>
+            <table class="grid-table">
+              <thead><tr><th>col1</th><th>col2</th></tr></thead>
+              <tbody><tr><td>...</td><td>...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="bottom-pane">
+          <div class="toolbar">
+            <strong>public.users</strong>
+            <span class="spacer"></span>
+            <button>Filter</button>
+            <button>Columns</button>
+            <button>Export</button>
+          </div>
+          <div class="pane-content">
+            <table class="grid-table">
+              <thead><tr><th>id</th><th>name</th><th>email</th><th>created_at</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Alice</td><td>a@x.com</td><td>2024-01-01</td></tr>
+                <tr><td>2</td><td>Bob</td><td>b@x.com</td><td>2024-01-02</td></tr>
+              </tbody>
+            </table>
+            <div class="toolbar" style="margin-top:8px;">
+              &lt; Prev | Page 1 of 12 | Next &gt;  Page size: [100]
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <span>Connected • postgres@localhost:5432</span>
+      <span>Rows 1–100 of 1,234</span>
+      <span>Ready</span>
+    </footer>
+  </div>
+</body>
+</html>

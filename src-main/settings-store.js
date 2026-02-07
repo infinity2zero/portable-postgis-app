@@ -9,7 +9,9 @@ const DEFAULT_SETTINGS = {
         postgres: 5432,
         pgadmin: 5050
     },
-    theme: 'auto', // auto, light, dark
+    dbUser: 'postgres',
+    dbPassword: 'postgres',
+    theme: 'light', // light, dark, auto (system)
     firstRun: true
 };
 
@@ -20,7 +22,13 @@ async function load() {
         if (await fs.pathExists(SETTINGS_FILE)) {
             const data = await fs.readJson(SETTINGS_FILE);
             // Merge with defaults to ensure all keys exist
-            currentSettings = { ...DEFAULT_SETTINGS, ...data, ports: { ...DEFAULT_SETTINGS.ports, ...data.ports } };
+            currentSettings = {
+            ...DEFAULT_SETTINGS,
+            ...data,
+            ports: { ...DEFAULT_SETTINGS.ports, ...(data.ports || {}) },
+            dbUser: data.dbUser ?? DEFAULT_SETTINGS.dbUser,
+            dbPassword: data.dbPassword ?? DEFAULT_SETTINGS.dbPassword
+        };
         } else {
             currentSettings = { ...DEFAULT_SETTINGS };
             await save(currentSettings);
@@ -33,10 +41,18 @@ async function load() {
 }
 
 async function save(newSettings) {
+    const base = currentSettings || { ...DEFAULT_SETTINGS };
+    const merged = {
+        ...base,
+        ...newSettings,
+        ports: { ...DEFAULT_SETTINGS.ports, ...(base.ports || {}), ...(newSettings.ports || {}) },
+        dbUser: newSettings.dbUser !== undefined ? newSettings.dbUser : base.dbUser,
+        dbPassword: newSettings.dbPassword !== undefined ? newSettings.dbPassword : base.dbPassword
+    };
     try {
-        currentSettings = { ...currentSettings, ...newSettings };
-        await fs.writeJson(SETTINGS_FILE, currentSettings, { spaces: 2 });
-        return true;
+        await fs.writeJson(SETTINGS_FILE, merged, { spaces: 2 });
+        currentSettings = merged;
+        return currentSettings;
     } catch (error) {
         console.error("Failed to save settings:", error);
         return false;

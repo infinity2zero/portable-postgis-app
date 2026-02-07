@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout D – VS Code style</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .main { display: flex; flex: 1; min-height: 0; }
+    .activity-bar {
+      width: 48px; background: #333; color: #ccc; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 4px;
+    }
+    .activity-bar .icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-left: 3px solid transparent; }
+    .activity-bar .icon:hover { color: #fff; }
+    .activity-bar .icon.active { color: #fff; border-left-color: #007acc; background: #252526; }
+    .sidebar { width: 220px; min-width: 160px; flex-shrink: 0; }
+    .editor-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .editor-tabs { flex-shrink: 0; }
+    .editor-body { flex: 1; overflow: auto; padding: 12px; font-family: monospace; font-size: 13px; white-space: pre; }
+    .panel { flex: 0 0 180px; min-height: 100px; display: flex; flex-direction: column; border-top: 1px solid #ccc; background: #fff; }
+    .panel-tabs { display: flex; gap: 0; padding: 0 8px; background: #f3f3f3; border-bottom: 1px solid #ccc; }
+    .panel-tabs .tab { padding: 6px 12px; cursor: pointer; font-size: 12px; }
+    .panel-tabs .tab.active { background: #fff; border-bottom: 1px solid #fff; margin-bottom: -1px; }
+    .panel-content { flex: 1; overflow: auto; padding: 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="title-bar">
+      <span class="logo">Portable PostGIS</span>
+      <span style="margin-left:12px; color:#888;">Database</span>
+      <span class="spacer"></span>
+      <a href="settings.html">Settings</a>
+      <span class="win-btns">— □ ×</span>
+    </header>
+
+    <div class="main">
+      <nav class="activity-bar">
+        <a href="dashboard.html" class="icon" title="Dashboard">⌂</a>
+        <a href="layout-d.html" class="icon active" title="Database">▦</a>
+        <a href="settings.html" class="icon" title="Settings">⚙</a>
+      </nav>
+
+      <aside class="sidebar">
+        <div style="font-weight:600; margin-bottom:8px; padding:4px 8px;">DATABASE</div>
+        <ul class="tree">
+          <li class="folder">▸ postgres</li>
+          <li class="folder">▾ Schemas</li>
+          <li class="folder">  ▾ public</li>
+          <li class="active">    users</li>
+          <li>    orders</li>
+          <li>    products</li>
+        </ul>
+        <button class="toolbar" style="margin-top:12px; width:100%;">Refresh</button>
+      </aside>
+
+      <div class="editor-wrap">
+        <div class="tabs editor-tabs">
+          <span class="tab">public.users</span>
+          <span class="tab active">Query 1</span>
+          <span class="tab">Query 2</span>
+          <span class="tab">+</span>
+        </div>
+        <div class="editor-body">SELECT * FROM public.users
+WHERE created_at > '2024-01-01'
+LIMIT 100;</div>
+        <div class="toolbar" style="flex-shrink:0;"><button>Run</button> <button>Explain</button> <button>New</button></div>
+
+        <div class="panel">
+          <div class="panel-tabs">
+            <span class="tab active">RESULTS</span>
+            <span class="tab">PROBLEMS</span>
+            <span class="tab">OUTPUT</span>
+          </div>
+          <div class="panel-content">
+            <table class="grid-table">
+              <thead><tr><th>id</th><th>name</th><th>email</th><th>created_at</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Alice</td><td>a@x.com</td><td>2024-01-01</td></tr>
+                <tr><td>2</td><td>Bob</td><td>b@x.com</td><td>2024-01-02</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <span>postgres • localhost:5432</span>
+      <span>public</span>
+      <span>42 rows</span>
+      <span>Ready</span>
+    </footer>
+  </div>
+</body>
+</html>

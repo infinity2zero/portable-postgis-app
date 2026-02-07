@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .main { flex: 1; overflow: auto; padding: 24px; background: #f5f5f5; max-width: 640px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+    .card h2 { margin: 0 0 16px 0; font-size: 16px; color: #1e1e1e; }
+    .form-row { display: flex; align-items: center; margin-bottom: 12px; }
+    .form-row label { width: 140px; flex-shrink: 0; }
+    .form-row input { padding: 6px 10px; width: 100px; }
+    .ext-list { list-style: none; padding: 0; margin: 0; }
+    .ext-list li { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .ext-list li:last-child { border-bottom: none; }
+    .theme-options { display: flex; gap: 8px; margin-top: 8px; }
+    .theme-options button { padding: 8px 16px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; }
+    .theme-options button.active { background: #007acc; color: #fff; border-color: #007acc; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="title-bar">
+      <span class="logo">Portable PostGIS</span>
+      <nav>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="layout-d.html">Database</a>
+      </nav>
+      <span class="spacer"></span>
+      <a href="settings.html" class="active">Settings</a>
+      <span class="win-btns">— □ ×</span>
+    </header>
+
+    <div class="main">
+      <div class="card">
+        <h2>Ports</h2>
+        <div class="form-row">
+          <label>PostgreSQL port</label>
+          <input type="number" value="5432" />
+        </div>
+        <p style="margin:0; font-size:12px; color:#666;">Change requires restart. Default: 5432.</p>
+      </div>
+
+      <div class="card">
+        <h2>Extensions</h2>
+        <p style="margin:0 0 12px 0; color:#555;">Installed PostgreSQL extensions. Enable/disable from Database view.</p>
+        <ul class="ext-list">
+          <li><span>PostGIS</span><span style="color:#0a0;">Enabled</span></li>
+          <li><span>pgRouting</span><span style="color:#0a0;">Enabled</span></li>
+          <li><span>Topology</span><span style="color:#0a0;">Enabled</span></li>
+          <li><span>Fuzzy Match</span><span style="color:#0a0;">Enabled</span></li>
+        </ul>
+        <button class="toolbar" style="margin-top:12px;">Refresh extensions</button>
+      </div>
+
+      <div class="card">
+        <h2>Appearance</h2>
+        <p style="margin:0 0 8px 0; color:#555;">Theme</p>
+        <div class="theme-options">
+          <button>Light</button>
+          <button class="active">Dark</button>
+          <button>System</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <span>Settings</span>
+    </footer>
+  </div>
+</body>
+</html>

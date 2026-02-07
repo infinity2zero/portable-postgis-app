@@ -1,0 +1,44 @@
+/* Design System tokens (from project root) */
+@import '../../design-system/design-tokens.css';
+
+/* Activity bar & primary sidebar: use semantic design tokens for consistency */
+:root,
+[data-theme='light'] {
+  --activity-sidebar-bg: var(--color-surface);
+  --activity-sidebar-text: var(--color-text);
+  --activity-sidebar-text-muted: var(--color-text-secondary);
+  --activity-sidebar-border: var(--color-border);
+  --activity-sidebar-hover-bg: var(--color-secondary);
+  --activity-sidebar-active-bg: rgba(var(--color-teal-500-rgb), 0.12);
+  --activity-sidebar-active-border: var(--color-primary);
+}
+
+[data-theme='dark'] {
+  --activity-sidebar-bg: var(--color-surface);
+  --activity-sidebar-text: var(--color-text);
+  --activity-sidebar-text-muted: var(--color-text-secondary);
+  --activity-sidebar-border: var(--color-border);
+  --activity-sidebar-hover-bg: var(--color-secondary);
+  --activity-sidebar-active-bg: var(--color-background);
+  --activity-sidebar-active-border: var(--color-primary);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  overflow: hidden;
+}

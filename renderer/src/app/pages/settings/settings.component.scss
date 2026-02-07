@@ -1,0 +1,181 @@
+// :host {
+//   display: flex;
+//   flex-direction: column;
+//   flex: 1;
+//   min-height: 0;
+//   min-width: 0;
+// }
+
+.settings {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-24);
+  // max-width: var(--container-md, 768px);
+}
+
+.settings-title {
+  margin: 0 0 var(--space-24) 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-base);
+  border: 1px solid var(--color-card-border);
+  padding: var(--space-20);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-title {
+  margin: 0 0 var(--space-8) 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.card-desc {
+  margin: 0 0 var(--space-12) 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.form-group {
+  margin-bottom: var(--space-16);
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-bottom: var(--space-12);
+}
+
+.form-row label {
+  width: 140px;
+  flex-shrink: 0;
+  font-size: var(--font-size-sm);
+}
+
+.form-actions {
+  margin-top: var(--space-12);
+  margin-bottom: var(--space-8);
+}
+
+.input {
+  padding: var(--space-6) var(--space-10);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.input-port {
+  width: 100px;
+}
+
+.input-text {
+  flex: 1;
+  min-width: 0;
+  max-width: 280px;
+}
+
+.input-readonly {
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+.hint-inline {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-left: var(--space-8);
+}
+
+.password-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: 1;
+  max-width: 280px;
+}
+
+.password-wrap .input-text {
+  max-width: none;
+}
+
+.btn-password-toggle {
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--font-size-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-error {
+  margin: 0 0 var(--space-8) 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-error);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-btn-primary-text);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.theme-options {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+}
+
+.theme-btn {
+  padding: var(--space-8) var(--space-16);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.theme-btn.active {
+  background: var(--color-primary);
+  color: var(--color-btn-primary-text);
+  border-color: var(--color-primary);
+}
+
+.card-danger .card-title {
+  color: var(--color-error);
+}
+
+.card-danger p {
+  margin: 0 0 var(--space-12) 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.btn {
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-danger {
+  background: var(--color-error);
+  color: var(--color-btn-primary-text);
+}

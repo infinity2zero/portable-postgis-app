@@ -1,0 +1,32 @@
+.title-bar {
+  flex-shrink: 0;
+  height: 36px;
+  background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: drag;
+  padding: 0 var(--space-12);
+}
+
+.title-bar-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  pointer-events: none;
+}
+
+.brand-logo {
+  height: 28px;
+  width: auto;
+  opacity: 0.9;
+}
+
+.app-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}

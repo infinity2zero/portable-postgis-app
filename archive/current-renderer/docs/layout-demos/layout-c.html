@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout C – Three-Column</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .main { display: flex; flex: 1; min-height: 0; }
+    .col { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid #ccc; }
+    .col:last-child { border-right: none; }
+    .col-1 { width: 200px; min-width: 140px; flex-shrink: 0; }
+    .col-2 { flex: 1; min-width: 200px; }
+    .col-3 { flex: 1; min-width: 200px; }
+    .col-header { padding: 8px; background: #f3f3f3; border-bottom: 1px solid #ddd; font-weight: 600; }
+    .col-body { flex: 1; overflow: auto; padding: 12px; }
+    .editor-placeholder { min-height: 60px; background: #fafafa; padding: 8px; font-family: monospace; font-size: 12px; border: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="title-bar">
+      <span class="logo">Portable PostGIS</span>
+      <nav>
+        <a href="index.html">Dashboard</a>
+        <a href="layout-c.html" class="active">Database</a>
+      </nav>
+      <span class="spacer"></span>
+      <a href="#">Settings</a>
+      <span class="win-btns">— □ ×</span>
+    </header>
+
+    <div class="main">
+      <div class="col col-1 sidebar">
+        <div class="col-header">Explorer</div>
+        <div class="col-body">
+          <ul class="tree">
+            <li class="folder">▸ postgres</li>
+            <li class="folder">▾ public</li>
+            <li class="active">  users</li>
+            <li>  orders</li>
+            <li>  products</li>
+          </ul>
+          <button class="toolbar" style="margin-top:8px; width:100%;">Refresh</button>
+        </div>
+      </div>
+
+      <div class="col col-2">
+        <div class="col-header">
+          public.users
+          <span style="float:right;"><button>Filter</button> <button>Columns</button> <button>Export</button></span>
+        </div>
+        <div class="col-body">
+          <table class="grid-table">
+            <thead><tr><th>id</th><th>name</th><th>email</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Alice</td><td>a@x.com</td></tr>
+              <tr><td>2</td><td>Bob</td><td>b@x.com</td></tr>
+            </tbody>
+          </table>
+          <div class="toolbar" style="margin-top:8px;">&lt; 1 2 3 &gt;  Page 100</div>
+        </div>
+      </div>
+
+      <div class="col col-3">
+        <div class="col-header">
+          Query 1  [+]  <button>Run</button> <button>Explain</button>
+        </div>
+        <div class="col-body">
+          <pre class="editor-placeholder">SELECT * FROM users
+LIMIT 100;</pre>
+          <div style="margin-top:12px; font-size:12px;">Results (or error)</div>
+          <table class="grid-table">
+            <thead><tr><th>col1</th><th>col2</th></tr></thead>
+            <tbody><tr><td>...</td><td>...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <span>Connected • postgres:5432</span>
+      <span>Rows 1–100</span>
+      <span>Ready</span>
+    </footer>
+  </div>
+</body>
+</html>

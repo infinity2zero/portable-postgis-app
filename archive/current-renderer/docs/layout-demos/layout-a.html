@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout A – Left Explorer, Top Tabs</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    .main { display: flex; flex: 1; min-height: 0; }
+    .sidebar { width: 240px; min-width: 160px; flex-shrink: 0; }
+    .editor-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .tabs { flex-shrink: 0; }
+    .tab-content { padding: 12px; }
+    .tab-content .toolbar { margin: -12px -12px 12px -12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="title-bar">
+      <span class="logo">Portable PostGIS</span>
+      <nav>
+        <a href="index.html">Dashboard</a>
+        <a href="layout-a.html" class="active">Database</a>
+      </nav>
+      <span class="spacer"></span>
+      <a href="#">Settings</a>
+      <span class="win-btns">— □ ×</span>
+    </header>
+
+    <div class="main">
+      <aside class="sidebar">
+        <div style="font-weight:600; margin-bottom:8px;">Schema Explorer</div>
+        <ul class="tree">
+          <li class="folder">▸ postgres</li>
+          <li class="folder">▾ Schemas</li>
+          <li class="folder">  ▾ public</li>
+          <li>    users</li>
+          <li>    orders</li>
+          <li>    products</li>
+          <li class="folder">  ▸ extensions</li>
+        </ul>
+        <button class="toolbar" style="margin-top:12px; width:100%;">Refresh</button>
+      </aside>
+
+      <div class="editor-wrap">
+        <div class="tabs">
+          <span class="tab active">Table "public.users"</span>
+          <span class="tab">Query 1</span>
+          <span class="tab">+</span>
+        </div>
+        <div class="tab-content">
+          <div class="toolbar">
+            <button>Filter</button>
+            <button>Columns</button>
+            <button>Export</button>
+            <span style="margin-left:auto;">&lt; 1 2 3 ... 10 &gt;  Page 100</span>
+          </div>
+          <table class="grid-table">
+            <thead><tr><th>id</th><th>name</th><th>email</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Alice</td><td>a@x.com</td></tr>
+              <tr><td>2</td><td>Bob</td><td>b@x.com</td></tr>
+              <tr><td>3</td><td>Carol</td><td>c@x.com</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <footer class="status-bar">
+      <span>Connected • postgres@localhost:5432</span>
+      <span>Rows: 1–100 of 1,234</span>
+      <span>Ready</span>
+    </footer>
+  </div>
+</body>
+</html>

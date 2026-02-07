@@ -1,0 +1,35 @@
+<div class="onboarding">
+  <div class="onboarding-inner">
+    @if (step === 0) {
+      <h1 class="onboarding-title">Welcome to Portable PostGIS</h1>
+      <p class="onboarding-desc">Your self-contained spatial database. Get started in a few steps.</p>
+    }
+    @if (step === 1) {
+      <h1 class="onboarding-title">Start PostgreSQL</h1>
+      <p class="onboarding-desc">Go to the Dashboard and click <strong>Start</strong> to run the database. You can change the port in Settings.</p>
+    }
+    @if (step === 2) {
+      <h1 class="onboarding-title">Connection details</h1>
+      <p class="onboarding-desc">Use <code>localhost</code> and the port you set (default 5432) to connect from external tools. User: <code>postgres</code>.</p>
+    }
+    @if (step === 3) {
+      <h1 class="onboarding-title">You're ready</h1>
+      <p class="onboarding-desc">Open the Database tab to browse tables and run SQL. Enjoy.</p>
+    }
+    <div class="onboarding-actions">
+      @if (step > 0) {
+        <button type="button" class="btn btn-secondary" (click)="prev()">Back</button>
+      }
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-secondary" (click)="skip()">Skip</button>
+      <button type="button" class="btn btn-primary" (click)="next()">
+        {{ step === totalSteps - 1 ? 'Get started' : 'Next' }}
+      </button>
+    </div>
+    <div class="step-dots">
+      @for (s of steps; track $index) {
+        <span class="dot" [class.active]="step === $index" [attr.aria-current]="step === $index ? 'step' : null"></span>
+      }
+    </div>
+  </div>
+</div>
