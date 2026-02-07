@@ -1,6 +1,6 @@
 {
     "name": "portable-postgis-app",
-    "version": "2.0.4",
+    "version": "2.0.5",
     "description": "Portable App bundling PostgreSQL and PostGIS with a built-in database browser",
     "keywords": [
         "portable",
@@ -33,6 +33,18 @@
         "productName": "Portable PostGIS",
         "icon": "assets/icon.png",
         "publish": null,
+        "files": [
+            "main.js",
+            "package.json",
+            "dist/**/*",
+            "src/preload.js",
+            "src-main/**/*",
+            "assets/**/*",
+            "!src/index.html",
+            "!src/renderer.js",
+            "!src/styles.css",
+            "!src/assets/**"
+        ],
         "extraResources": [
             {
                 "from": "bin/${os}",
@@ -54,7 +66,8 @@
                     "!**/share/locale/**",
                     "!**/postgis-bundle-*/**",
                     "!**/pgAdmin 4/**",
-                    "!**/libs/**"
+                    "!**/libs/**",
+                    "!**/python/**"
                 ]
             },
             "data"

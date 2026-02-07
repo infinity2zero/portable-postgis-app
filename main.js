@@ -66,7 +66,12 @@ function createWindow() {
         if (fs.existsSync(angularIndex)) {
             mainWindow.loadFile(angularIndex);
         } else {
-            mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+            // Angular UI only: do not fall back to legacy src/index.html
+            const errorHtml = `data:text/html;charset=utf-8,${encodeURIComponent(
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Portable PostGIS</title></head><body style="font-family:sans-serif;padding:2rem;max-width:480px;margin:0 auto;">' +
+                '<h1>UI not built</h1><p>Run <code>npm run build:renderer</code> then start the app again, or use <code>npm run dev</code> for development.</p></body></html>'
+            )}`;
+            mainWindow.loadURL(errorHtml).catch((err) => console.error('Load failed:', err));
         }
     }
 

@@ -10,13 +10,11 @@ const tar = require('tar');
 // Configuration for Binaries
 const CONFIG = {
     mac: {
-        postgres: "https://github.com/PostgresApp/PostgresApp/releases/download/v2.9.1/Postgres-2.9.1-16.dmg",
-        python: "https://github.com/indygreg/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-apple-darwin-install_only.tar.gz"
+        postgres: "https://github.com/PostgresApp/PostgresApp/releases/download/v2.9.1/Postgres-2.9.1-16.dmg"
     },
     win: {
         postgres: "https://get.enterprisedb.com/postgresql/postgresql-14.10-1-windows-x64-binaries.zip",
-        postgis: "https://download.osgeo.org/postgis/windows/pg14/postgis-bundle-pg14-3.6.1x64.zip",
-        python: "https://github.com/indygreg/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-pc-windows-msvc-shared-install_only.tar.gz"
+        postgis: "https://download.osgeo.org/postgis/windows/pg14/postgis-bundle-pg14-3.6.1x64.zip"
     }
 };
 
@@ -336,7 +334,7 @@ async function installPostgres(targetOS) {
 
                 console.log(`[${targetOS}] PostGIS installation/merge complete.`);
             } catch (e) {
-                // Non-fatal: log and continue so Python can still be installed
+                // Non-fatal: log and continue
                 console.error(`[${targetOS}] ❌ Failed to download/install PostGIS from ${postgisUrl}: ${e.message}`);
                 console.warn(`[${targetOS}] Continuing without PostGIS - you can set POSTGIS_URL in CI to a valid bundle URL.`);
             }
@@ -369,118 +367,9 @@ async function installPostgres(targetOS) {
     }
 }
 
-async function installPython(targetOS) {
-    const url = CONFIG[targetOS].python;
-    const filename = path.basename(url);
-    const binRoot = path.join(__dirname, '..', 'bin', targetOS);
-    const downloadPath = path.join(binRoot, filename);
-    const extractPath = path.join(binRoot, 'python');
-
-    if (await fs.pathExists(extractPath)) {
-        console.log(`[${targetOS}] Python already installed.`);
-        return;
-    }
-
-    await fs.ensureDir(binRoot);
-    await downloadFile(url, downloadPath);
-
-    console.log(`[${targetOS}] Extracting Python...`);
-    await fs.ensureDir(extractPath);
-
-    // Python standalone builds are .tar.gz usually
-    await tar.x({
-        file: downloadPath,
-        cwd: extractPath,
-        strip: 0 // usually contains 'python' dir, check structure
-    });
-
-    // Smart flattening: Find the binary and move everything up
-    const binaryName = targetOS === 'win' ? 'python.exe' : path.join('bin', 'python3');
-    
-    const findBinary = async (dir, targetEnd) => {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                const found = await findBinary(fullPath, targetEnd);
-                if (found) return found;
-            } else {
-                // Check if this file matches the target binary name (or path suffix)
-                if (fullPath.endsWith(targetEnd)) {
-                    return fullPath;
-                }
-            }
-        }
-        return null;
-    };
-
-    console.log(`[${targetOS}] Searching for ${binaryName}...`);
-    const foundPath = await findBinary(extractPath, binaryName);
-    
-    if (foundPath) {
-        console.log(`[${targetOS}] Found binary at ${foundPath}`);
-        
-        // Determine the root of the Python installation.
-        // For macOS we keep the existing logic (bin/python3 layout).
-        // For Windows, indygreg builds can place python.exe deep under
-        // python/Lib/venv/scripts/nt, so we walk up until we hit the
-        // top-level "python" directory to preserve Lib/, DLLs, etc.
-        let sourceRoot = path.dirname(foundPath);
-        
-        if (targetOS === 'win') {
-            let candidate = sourceRoot;
-            while (
-                candidate.startsWith(extractPath) &&
-                candidate !== extractPath &&
-                path.basename(candidate).toLowerCase() !== 'python'
-            ) {
-                candidate = path.dirname(candidate);
-            }
-            sourceRoot = candidate;
-            console.log(`[${targetOS}] Using Python root at ${sourceRoot}`);
-        } else {
-            // Non-Windows: If binary is 'bin/python3', root is dirname(dirname(foundPath))
-            const parts = binaryName.split(path.sep);
-            if (parts.length > 1) {
-                for (let i = 0; i < parts.length - 1; i++) {
-                    sourceRoot = path.dirname(sourceRoot);
-                }
-            }
-        }
-        
-        if (sourceRoot !== extractPath) {
-            console.log(`[${targetOS}] Flattening from ${sourceRoot} to ${extractPath}...`);
-            const contents = await fs.readdir(sourceRoot);
-            for (const item of contents) {
-                // Move items up
-                await fs.move(path.join(sourceRoot, item), path.join(extractPath, item), { overwrite: true });
-            }
-        }
-        
-        // Sanity check: ensure Lib directory exists after flattening
-        const libDir = path.join(extractPath, 'Lib');
-        if (targetOS === 'win') {
-            if (await fs.pathExists(libDir)) {
-                console.log(`[${targetOS}] Verified Python Lib directory at ${libDir}`);
-            } else {
-                console.warn(`[${targetOS}] WARNING: Python Lib directory not found at ${libDir}.`);
-            }
-        }
-    } else {
-        throw new Error(`Could not find ${binaryName} in extracted files.`);
-    }
-
-    /* 
-    // Old flattening logic removed in favor of smart search
-    // Adjust structure if needed. Indygreg builds usually have a 'python' top level folder.
-    const innerPython = path.join(extractPath, 'python');
-    if (await fs.pathExists(innerPython)) { ... }
-    const installDir = path.join(extractPath, 'install');
-    if (await fs.pathExists(installDir)) { ... }
-    */
-
-    await fs.remove(downloadPath);
-    console.log(`[${targetOS}] Python installed.`);
+// Python was only used by pgAdmin; no longer bundled.
+async function installPython(_targetOS) {
+    console.log('[setup] Python is no longer bundled (pgAdmin removed); skipping.');
 }
 
 // pgAdmin has been removed from the bundle; the app uses the built-in database browser only.

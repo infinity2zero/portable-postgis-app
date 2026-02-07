@@ -59,7 +59,7 @@ class ProcessManager extends EventEmitter {
         if (child) {
             console.log(`[${id}] Stopping...`);
             // Windows often needs SIGTERM or even SIGKILL if it doesn't listen to SIGINT
-            // Python/pgAdmin might be stubborn
+            // Process might be stubborn to SIGTERM
             child.kill('SIGTERM');
             delete this.processes[id];
         }

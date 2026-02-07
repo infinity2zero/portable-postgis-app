@@ -35,7 +35,6 @@ jobs:
     - name: Verify Binary Structure
       run: |
         if (Test-Path "bin/win/postgres/bin/postgres.exe") { echo "Postgres found" } else { echo "Postgres MISSING"; exit 1 }
-        if (Test-Path "bin/win/python/python.exe") { echo "Python found" } else { echo "Python MISSING"; exit 1 }
         
     - name: Build Electron App (Distributable)
       run: npx electron-builder --win

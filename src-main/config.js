@@ -32,13 +32,6 @@ module.exports = {
         POSTGRES_BIN: IS_WIN
             ? path.join(BIN_DIR, 'postgres', 'bin', 'postgres.exe')
             : path.join(BIN_DIR, 'postgres', 'bin', 'postgres'),
-
-        // Python: usually bin/python/bin/python3 (mac) or bin/python/python.exe (win)
-        PYTHON_BIN: IS_WIN
-            ? path.join(BIN_DIR, 'python', 'python.exe')
-            : path.join(BIN_DIR, 'python', 'bin', 'python3'),
-
-        PGADMIN_SRC: path.join(BIN_DIR, 'pgadmin4'),
     },
     PORTS: {
         POSTGRES: 5432,
